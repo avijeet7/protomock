@@ -1,0 +1,59 @@
+# Go build artifacts
+/bin/
+/build/
+/dist/
+*.exe
+*.test
+*.out
+
+# Dependency directories
+vendor/
+Gopkg.lock
+Gopkg.toml
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Go module cache
+/pkg/mod/
+/*.mod
+/*.sum
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Protobuf generated code
+*.pb.go
+
+# Temporary/mock data
+*.pb
+*.pb.txt
+*.pb.json
+mocks/**/stubs/*.tmp
+mocks/**/stubs/*.bak
+
+# Runtime files
+debug/
+coverage.out
+
+# Test cache
+*.prof
+*.cov
+*.coverprofile
+
+# Optional Docker-related
+docker-compose.override.yml
+.env

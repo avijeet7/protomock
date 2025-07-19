@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package test;
+
+import "google/protobuf/empty.proto";
+
+option go_package = ".;protobuf";
+
+message TestResponse {
+  string message = 1;
+  int32 code = 2;
+}
+
+service FakeService {
+  rpc Hello (google.protobuf.Empty) returns (TestResponse);
+}

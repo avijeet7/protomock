@@ -1,0 +1,4 @@
+mocks/
+.git/
+*.log
+*.tmp

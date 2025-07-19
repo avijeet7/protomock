@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package greeter;
+
+message HelloResponse {
+  string message = 1;
+  int32 code = 2;
+}

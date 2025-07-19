@@ -1,0 +1,9 @@
+{
+  "url": "/test.FakeService/Hello",
+  "status": 200,
+  "message": "test.TestResponse",
+  "response": {
+    "message": "Hello from fake service",
+    "code": 200
+  }
+}

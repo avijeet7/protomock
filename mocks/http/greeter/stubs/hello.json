@@ -1,0 +1,9 @@
+{
+  "url": "/hello",
+  "status": 200,
+  "message": "greeter.HelloResponse",
+  "response": {
+    "message": "Hello, Avijeet!",
+    "code": 200
+  }
+}
