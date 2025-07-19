@@ -1,0 +1,8 @@
+{
+  "url": "/greeter.Greeter/SayHello",
+  "status": 200,
+  "message": "greeter.HelloResponse",
+  "response": {
+    "message": "Hello, Avijeet!"
+  }
+}

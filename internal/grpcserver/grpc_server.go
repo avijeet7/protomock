@@ -16,7 +16,7 @@ type mockService struct {
 }
 
 // ServeGRPC dynamically serves responses for any gRPC method registered via UnknownServiceHandler.
-func (m *mockService) ServeGRPC(srv interface{}, serverStream grpc.ServerStream) error {
+func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) error {
 	fullMethod, ok := grpc.MethodFromServerStream(serverStream)
 	if !ok {
 		log.Println("Unable to get method from stream")
@@ -58,7 +58,10 @@ func StartGRPCServer(routes []models.Route) {
 		grpc.UnknownServiceHandler((&mockService{routes: routeMap}).ServeGRPC),
 	)
 
-	// Allow tools like grpcurl to query service metadata (even if we don’t register real service descriptors)
+	for _, route := range routes {
+		log.Printf("[gRPC] Registered route: %s", route.URL)
+	}
+
 	reflection.Register(server)
 
 	log.Println("🚀 gRPC server started on :9090")
