@@ -11,7 +11,7 @@ vendor/
 Gopkg.lock
 Gopkg.toml
 
-# Go workspace file
+# Go workspace files
 go.work
 go.work.sum
 
@@ -20,7 +20,7 @@ go.work.sum
 /*.mod
 /*.sum
 
-# IDE and editor files
+# IDE/editor config
 .vscode/
 .idea/
 *.swp
@@ -37,6 +37,8 @@ Thumbs.db
 
 # Protobuf generated code
 *.pb.go
+*.pb.cc
+*.pb.h
 
 # Temporary/mock data
 *.pb
@@ -45,15 +47,17 @@ Thumbs.db
 mocks/**/stubs/*.tmp
 mocks/**/stubs/*.bak
 
-# Runtime files
+# Mock server run-time/debug files
 debug/
 coverage.out
-
-# Test cache
 *.prof
 *.cov
 *.coverprofile
 
-# Optional Docker-related
+# Docker-related (optional)
 docker-compose.override.yml
 .env
+
+# Protomock-specific
+mocks/**/stubs/*.json.backup
+mocks/**/stubs/invalid_*.json

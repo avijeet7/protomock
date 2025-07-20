@@ -1,20 +1,20 @@
 # 🧪 ProtoMock: Dynamic HTTP & gRPC Mock Server
 
-**ProtoMock** is a powerful Go-based server that dynamically mocks HTTP and gRPC endpoints using `.proto` files and JSON
-stub responses. Ideal for frontend/backend teams needing quick, consistent mocks for integration testing or local
-development.
+**ProtoMock** is a powerful Go-based server that dynamically mocks HTTP and gRPC endpoints using `.proto` files and JSON stub responses. It supports advanced matching and flexible configuration, making it ideal for integration testing, sandbox environments, and frontend/backend development workflows.
 
 ---
 
 ## 📦 Features
 
-- ✅ Serve both **HTTP** and **gRPC** endpoints from a single server
-- 🔁 Hot-swappable mock structure using `mocks/http` and `mocks/grpc`
-- 🧠 JSON-based mock responses auto-marshaled to Protobuf
-- 📜 Auto registers all proto-defined message types
-- 💡 Supports dynamic path registration from stubs
-- 🧰 Includes reflection for `grpcurl` debugging support
-- 📁 Clean modular codebase — easy to extend
+- ✅ Serve both **HTTP** and **gRPC** endpoints from a single mock server
+- 🔁 Automatically load `.proto` + `stub.json` pairs from `mocks/` folders
+- ⚡ Supports **dynamic path + message type** mapping from stubs
+- 🧠 JSON stub bodies auto-marshaled to **Protobuf**
+- 🔍 Header & body request **matching for HTTP and gRPC**
+- 🤖 Supports **content-type-based response**: Protobuf or JSON
+- 🛠 gRPC reflection for `grpcurl` debugging
+- 🔐 Optional matching for headers and partial body (WireMock style)
+- 🧰 Clean, extensible codebase with clear modular separation
 
 ---
 
@@ -27,18 +27,25 @@ protomock/
 │       └── main.go                  # Starts both HTTP and gRPC servers
 ├── internal/
 │   ├── grpcserver/
-│   │   └── grpc_server.go           # gRPC server setup
+│   │   ├── server.go                # gRPC server bootstrap
+│   │   ├── handler.go               # gRPC request matching and response
+│   │   └── utils.go                 # Normalization helpers
 │   ├── httpserver/
-│   │   └── http_server.go           # HTTP server setup
+│   │   ├── server.go                # HTTP route bootstrap
+│   │   ├── handler.go               # HTTP matching logic
+│   │   └── matcher.go               # Header & body comparison logic
 │   ├── loader/
-│   │   └── loader.go                # Stub and proto loader
+│   │   ├── loader.go                # Walks folders for mocks
+│   │   ├── parser.go                # Parses proto + stubs
+│   │   └── message.go               # Finds proto message definitions
 │   └── models/
-│       └── stub.go                  # Route and stub definitions
+│       ├── route.go                 # Runtime route representation
+│       └── stub.go                  # Stub input definition
 ├── mocks/
 │   ├── http/
-│   │   └── <service>/               # Proto + stub folder for HTTP
+│   │   └── <service>/               # Proto + stubs for HTTP
 │   └── grpc/
-│       └── <service>/               # Proto + stub folder for gRPC
+│       └── <service>/               # Proto + stubs for gRPC
 └── docker-compose.yml
 ```
 
@@ -58,80 +65,64 @@ Uses the bundled `./mocks` folder mounted into the container.
 
 ### ▶️ From DockerHub (User Usage)
 
-Once pushed to DockerHub:
-
 ```bash
 docker run -p 8080:8080 -p 9090:9090 \
   -v $(pwd)/mymocks:/app/mocks \
   avijeet7/protomock:latest
 ```
 
-> Replace `$(pwd)/mymocks` with your local mocks directory.
+> Replace `$(pwd)/mymocks` with your actual mocks directory.
 
 ---
 
 ## 🧪 Testing
 
-### 🔗 HTTP Test
+### 🔗 HTTP Example
 
 ```bash
-curl http://localhost:8080/hello \
-  -H "Content-Type: application/x-protobuf"
+curl -X POST http://localhost:8080/hello/http \
+  -H "Content-Type: application/json" \
+  -H "X-Test-Header: mocked" \
+  -d '{"user_id": "abc123"}'
 ```
 
----
-
-### 🔗 gRPC Test
+### 🔗 gRPC Example
 
 ```bash
 grpcurl -plaintext \
-  -proto mocks/grpc/greeter/greeter.proto \
-  -d '{"name": "Avijeet"}' \
-  localhost:9090 greeter.Greeter/SayHello
+  -proto mocks/grpc/hello/hello.proto \
+  -d '{}' \
+  localhost:9090 test.FakeService/Hello
 ```
 
 ---
 
-## ⚙️ Configuration Details
+## ⚙️ Stub Format
 
-**Protos go under:**
-
-- `mocks/http/<service>/` for HTTP
-- `mocks/grpc/<service>/` for gRPC
-
-Each service folder should have:
-
-- One or more `.proto` files
-- A `stubs/` folder with JSON stub files
-
-Stub files look like:
+**HTTP or gRPC stub file:**
 
 ```json
 {
-  "url": "/hello",
-  "status": 200,
-  "message": "test.TestResponse",
+  "request": {
+    "method": "POST",
+    "url": "/hello/http",
+    "headers": {
+      "X-Test-Header": "mocked"
+    },
+    "body": {
+      "user_id": "abc123"
+    }
+  },
   "response": {
-    "message": "Hello there!",
-    "code": 123
+    "status": 200,
+    "message": "test.TestResponse",
+    "body": {
+      "message": "Hello from ProtoMock!",
+      "code": 42
+    },
+    "proto": true
   }
 }
-```
-
----
-
-## 🧼 .gitignore
-
-The project includes:
-
-```gitignore
-mocks/
-*.pb.go
-*.pb.json
-vendor/
-*.exe
-*.out
-dist/
 ```
 
 ---
