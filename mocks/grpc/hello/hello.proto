@@ -11,6 +11,11 @@ message TestResponse {
   int32 code = 2;
 }
 
-service FakeService {
-  rpc Hello (google.protobuf.Empty) returns (TestResponse);
+message HelloRequest {
+  int32 asd = 1;
 }
+
+service FakeService {
+  rpc Hello (HelloRequest) returns (TestResponse);
+}
+

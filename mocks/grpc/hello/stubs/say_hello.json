@@ -1,9 +1,15 @@
 {
-  "url": "/test.FakeService/Hello",
-  "status": 200,
-  "message": "test.TestResponse",
+  "request": {
+    "method": "POST",
+    "url": "/test.FakeService/Hello"
+  },
   "response": {
-    "message": "Hello from fake service",
-    "code": 200
+    "status": 200,
+    "message": "test.TestResponse",
+    "body": {
+      "message": "Hello from fake service",
+      "code": 200
+    },
+    "proto": true
   }
 }

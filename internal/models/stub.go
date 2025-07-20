@@ -1,22 +1,25 @@
 package models
 
-import (
-	"encoding/json"
+import "encoding/json"
 
-	"github.com/jhump/protoreflect/dynamic"
-)
-
-// Stub represents a single mock response configuration loaded from a .json file.
+// Stub represents the full structure of the stub JSON file (WireMock style)
 type Stub struct {
-	URL      string          `json:"url"`      // The endpoint to serve
-	Status   int             `json:"status"`   // HTTP status code or gRPC status code (if needed)
-	Message  string          `json:"message"`  // Fully qualified Protobuf message name
-	Response json.RawMessage `json:"response"` // JSON-formatted payload to convert into Protobuf
+	Request  RequestStub  `json:"request"`
+	Response ResponseStub `json:"response"`
 }
 
-// Route holds a parsed stub with the dynamic Protobuf message, ready to be served.
-type Route struct {
-	URL     string           // Endpoint path or gRPC method name
-	Status  int              // Response status code
-	Message *dynamic.Message // Parsed Protobuf message
+// RequestStub defines the matching rules
+type RequestStub struct {
+	Method  string            `json:"method"`
+	URL     string            `json:"url"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Body    json.RawMessage   `json:"body,omitempty"`
+}
+
+// ResponseStub defines the stubbed response
+type ResponseStub struct {
+	Status  int             `json:"status"`
+	Message string          `json:"message"`
+	Body    json.RawMessage `json:"body"`
+	Proto   bool            `json:"proto"` // true = return as Protobuf, false = JSON
 }

@@ -1,9 +1,15 @@
 {
-  "url": "/hello",
-  "status": 200,
-  "message": "greeter.HelloResponse",
+  "request": {
+    "method": "GET",
+    "url": "/hello/http"
+  },
   "response": {
-    "message": "Hello, Avijeet!",
-    "code": 200
+    "status": 200,
+    "message": "greeter.HelloResponse",
+    "body": {
+      "message": "Hello from ProtoMock!",
+      "code": 42
+    },
+    "proto": true
   }
 }
