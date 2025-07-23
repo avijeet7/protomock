@@ -1,63 +1,32 @@
-# Go build artifacts
-/bin/
-/build/
-/dist/
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
 *.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
 *.test
+
+# Code coverage profiles and other test artifacts
 *.out
+coverage.*
+*.coverprofile
+profile.cov
 
-# Dependency directories
+# Dependency directories (remove the comment below to include it)
 vendor/
-Gopkg.lock
-Gopkg.toml
 
-# Go workspace files
+# Go workspace file
 go.work
 go.work.sum
 
-# Go module cache
-/pkg/mod/
-/*.mod
-/*.sum
-
-# IDE/editor config
-.vscode/
-.idea/
-*.swp
-*.swo
-*.bak
-*.tmp
-
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Protobuf generated code
-*.pb.go
-*.pb.cc
-*.pb.h
-
-# Temporary/mock data
-*.pb
-*.pb.txt
-*.pb.json
-mocks/**/stubs/*.tmp
-mocks/**/stubs/*.bak
-
-# Mock server run-time/debug files
-debug/
-coverage.out
-*.prof
-*.cov
-*.coverprofile
-
-# Docker-related (optional)
-docker-compose.override.yml
+# env file
 .env
 
-# Protomock-specific
-mocks/**/stubs/*.json.backup
-mocks/**/stubs/invalid_*.json
+# Editor/IDE
+.idea/
+.vscode/
