@@ -3,14 +3,14 @@
     "method": "GET",
     "url": "/hello/http",
     "headers": {
-      "X-Test-Header": "mocked1"
+      "X-Test-Header": "mocked2"
     }
   },
   "response": {
     "status": 200,
     "message": "greeter.HelloResponse",
     "body": {
-      "message": "Hello from ProtoMock!",
+      "message": "Hello HEELLOOOO!!! from ProtoMock!",
       "code": 42
     },
     "proto": true

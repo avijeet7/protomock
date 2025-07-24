@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"   # HTTP
-      - "9090:9090"   # gRPC
+      - "8085:8085"   # HTTP
+      - "8086:8086"   # gRPC
     volumes:
       - ./mocks:/app/mocks:ro

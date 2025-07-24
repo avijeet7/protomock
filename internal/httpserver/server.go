@@ -8,11 +8,17 @@ import (
 )
 
 func StartHTTPServer(routes []models.Route) {
+	urlToRoutes := make(map[string][]models.Route)
+
 	for _, route := range routes {
-		log.Printf("[HTTP] Registered route: %s %s", route.Method, route.URL)
-		http.HandleFunc(route.URL, makeHandler(route))
+		urlToRoutes[route.URL] = append(urlToRoutes[route.URL], route)
 	}
 
-	log.Println("[HTTP] Server started on :8080")
-	http.ListenAndServe(":8080", nil)
+	for url, groupedRoutes := range urlToRoutes {
+		http.HandleFunc(url, makeGroupedHandler(groupedRoutes))
+		log.Printf("[HTTP] Registered handler for URL: %s (%d routes)", url, len(groupedRoutes))
+	}
+
+	log.Println("[HTTP] Server started on :8085")
+	http.ListenAndServe(":8085", nil)
 }

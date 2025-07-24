@@ -3,14 +3,14 @@
     "method": "POST",
     "url": "/test.FakeService/Hello",
     "headers": {
-      "X-Test-Header": "mocked1"
+      "X-Test-Header": "mocked2"
     }
   },
   "response": {
     "status": 200,
     "message": "test.TestResponse",
     "body": {
-      "message": "Hello from fake service",
+      "message": "Hello HEEELOOOOO!! from fake service",
       "code": 200
     },
     "proto": true

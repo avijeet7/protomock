@@ -11,10 +11,62 @@
 - ⚡ Supports **dynamic path + message type** mapping from stubs
 - 🧠 JSON stub bodies auto-marshaled to **Protobuf**
 - 🔍 Header & body request **matching for HTTP and gRPC**
-- 🤖 Supports **content-type-based response**: Protobuf or JSON
+- 🤖 Supports **Protobuf or JSON** response encoding
 - 🛠 gRPC reflection for `grpcurl` debugging
-- 🔐 Optional matching for headers and partial body (WireMock style)
-- 🧰 Clean, extensible codebase with clear modular separation
+- 🔐 Optional header and partial body matching (WireMock style)
+- 🧰 Clean, extensible codebase with modular separation
+
+---
+
+## 🚀 How to Use
+
+1. **Start the server**
+   You can run using Docker or from source.
+
+2. **Create your mocks folder**
+   Your `mocks` directory should follow this structure:
+
+   ```text
+   mocks/
+   ├── http/
+   │   └── <mockName>/
+   │       ├── service.proto
+   │       └── stubs/
+   │           ├── stub1.json
+   │           └── stub2.json
+   └── grpc/
+       └── <mockName>/
+           ├── service.proto
+           └── stubs/
+               ├── stub1.json
+               └── stub2.json
+   ```
+
+3. **Stub Format**
+   Each stub JSON must define:
+   ```json
+   {
+     "request": {
+       "method": "POST",
+       "url": "/test.FakeService/Hello",
+       "headers": {
+         "X-Test-Header": "mocked1"
+       },
+       "body": {
+         "user_id": "abc123"
+       }
+     },
+     "response": {
+       "status": 200,
+       "message": "test.TestResponse",
+       "body": {
+         "message": "Hello from fake service",
+         "code": 200
+       },
+       "proto": true
+     }
+   }
+   ```
 
 ---
 
@@ -24,28 +76,28 @@
 protomock/
 ├── cmd/
 │   └── server/
-│       └── main.go                  # Starts both HTTP and gRPC servers
+│       └── main.go
 ├── internal/
 │   ├── grpcserver/
-│   │   ├── server.go                # gRPC server bootstrap
-│   │   ├── handler.go               # gRPC request matching and response
-│   │   └── utils.go                 # Normalization helpers
+│   │   ├── server.go
+│   │   ├── handler.go
+│   │   └── utils.go
 │   ├── httpserver/
-│   │   ├── server.go                # HTTP route bootstrap
-│   │   ├── handler.go               # HTTP matching logic
-│   │   └── matcher.go               # Header & body comparison logic
+│   │   ├── server.go
+│   │   ├── handler.go
+│   │   └── matcher.go
 │   ├── loader/
-│   │   ├── loader.go                # Walks folders for mocks
-│   │   ├── parser.go                # Parses proto + stubs
-│   │   └── message.go               # Finds proto message definitions
+│   │   ├── loader.go
+│   │   ├── parser.go
+│   │   └── message.go
 │   └── models/
-│       ├── route.go                 # Runtime route representation
-│       └── stub.go                  # Stub input definition
+│       ├── route.go
+│       └── stub.go
 ├── mocks/
 │   ├── http/
-│   │   └── <service>/               # Proto + stubs for HTTP
+│   │   └── <service>/...
 │   └── grpc/
-│       └── <service>/               # Proto + stubs for gRPC
+│       └── <service>/...
 └── docker-compose.yml
 ```
 
@@ -58,10 +110,6 @@ protomock/
 ```bash
 docker-compose up --build
 ```
-
-Uses the bundled `./mocks` folder mounted into the container.
-
----
 
 ### ▶️ From DockerHub (User Usage)
 
@@ -93,36 +141,6 @@ grpcurl -plaintext \
   -proto mocks/grpc/hello/hello.proto \
   -d '{}' \
   localhost:9090 test.FakeService/Hello
-```
-
----
-
-## ⚙️ Stub Format
-
-**HTTP or gRPC stub file:**
-
-```json
-{
-  "request": {
-    "method": "POST",
-    "url": "/hello/http",
-    "headers": {
-      "X-Test-Header": "mocked"
-    },
-    "body": {
-      "user_id": "abc123"
-    }
-  },
-  "response": {
-    "status": 200,
-    "message": "test.TestResponse",
-    "body": {
-      "message": "Hello from ProtoMock!",
-      "code": 42
-    },
-    "proto": true
-  }
-}
 ```
 
 ---

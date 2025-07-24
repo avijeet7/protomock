@@ -10,12 +10,13 @@ import (
 )
 
 func StartGRPCServer(routes []models.Route) {
-	listener, err := net.Listen("tcp", ":9090")
+	listener, err := net.Listen("tcp", ":8086")
 	if err != nil {
 		log.Fatalf("❌ Failed to listen on gRPC port: %v", err)
 	}
 
-	routeMap := normalizeRoutes(routes)
+	// 🔁 Group routes by gRPC full method path
+	routeMap := groupRoutesByMethod(routes)
 
 	server := grpc.NewServer(
 		grpc.UnknownServiceHandler((&mockService{routes: routeMap}).ServeGRPC),
@@ -27,7 +28,7 @@ func StartGRPCServer(routes []models.Route) {
 		log.Printf("[gRPC] Registered route: %s", fullMethod)
 	}
 
-	log.Println("🚀 gRPC server started on :9090")
+	log.Println("🚀 gRPC server started on :8086")
 	if err := server.Serve(listener); err != nil {
 		log.Fatalf("❌ Failed to serve gRPC server: %v", err)
 	}
