@@ -114,7 +114,7 @@ docker-compose up --build
 ### ▶️ From DockerHub (User Usage)
 
 ```bash
-docker run -p 8080:8080 -p 9090:9090 \
+docker run -p 8085:8085 -p 8086:8086 \
   -v $(pwd)/mymocks:/app/mocks \
   avijeet7/protomock:latest
 ```
@@ -128,7 +128,7 @@ docker run -p 8080:8080 -p 9090:9090 \
 ### 🔗 HTTP Example
 
 ```bash
-curl -X POST http://localhost:8080/hello/http \
+curl -X POST http://localhost:8085/hello/http \
   -H "Content-Type: application/json" \
   -H "X-Test-Header: mocked" \
   -d '{"user_id": "abc123"}'
@@ -140,7 +140,7 @@ curl -X POST http://localhost:8080/hello/http \
 grpcurl -plaintext \
   -proto mocks/grpc/hello/hello.proto \
   -d '{}' \
-  localhost:9090 test.FakeService/Hello
+  localhost:8086 test.FakeService/Hello
 ```
 
 ---
