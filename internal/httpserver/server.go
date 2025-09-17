@@ -16,7 +16,16 @@ func StartHTTPServer(routes []models.Route) {
 
 	for url, groupedRoutes := range urlToRoutes {
 		http.HandleFunc(url, makeGroupedHandler(groupedRoutes))
-		log.Printf("[HTTP] Registered handler for URL: %s (%d routes)", url, len(groupedRoutes))
+		protoCount := 0
+		jsonCount := 0
+		for _, route := range groupedRoutes {
+			if route.ProtoEncoded {
+				protoCount++
+			} else {
+				jsonCount++
+			}
+		}
+		log.Printf("[HTTP] Registered handler for URL: %s (Total: %d, Proto: %d, JSON: %d)", url, len(groupedRoutes), protoCount, jsonCount)
 	}
 
 	log.Println("[HTTP] Server started on :8085")

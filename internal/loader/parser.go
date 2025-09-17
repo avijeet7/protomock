@@ -57,16 +57,23 @@ func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 			continue
 		}
 
-		msgDesc := findMessage(fds, s.Response.Message)
-		if msgDesc == nil {
-			log.Printf("Message type %s not found in proto file %s", s.Response.Message, protoPath)
-			continue
-		}
+		var msg *dynamic.Message
+		var rawJSONBody []byte
 
-		msg := dynamic.NewMessage(msgDesc)
-		if err := msg.UnmarshalJSON(s.Response.Body); err != nil {
-			log.Printf("Failed to unmarshal response for %s: %v", stubPath, err)
-			continue
+		if s.Response.Proto {
+			msgDesc := findMessage(fds, s.Response.Message)
+			if msgDesc == nil {
+				log.Printf("Message type %s not found in proto file %s", s.Response.Message, protoPath)
+				continue
+			}
+
+			msg = dynamic.NewMessage(msgDesc)
+			if err := msg.UnmarshalJSON(s.Response.Body); err != nil {
+				log.Printf("Failed to unmarshal response for %s: %v", stubPath, err)
+				continue
+			}
+		} else {
+			rawJSONBody = s.Response.Body
 		}
 
 		routes = append(routes, models.Route{
@@ -77,6 +84,7 @@ func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 			Status:       s.Response.Status,
 			Message:      msg,
 			ProtoEncoded: s.Response.Proto,
+			RawJSONBody:  rawJSONBody,
 		})
 	}
 

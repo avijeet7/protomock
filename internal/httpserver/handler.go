@@ -25,12 +25,7 @@ func makeGroupedHandler(routes []models.Route) http.HandlerFunc {
 					w.Write(data)
 				} else {
 					w.Header().Set("Content-Type", "application/json")
-					data, err := route.Message.MarshalJSON()
-					if err != nil {
-						http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
-						return
-					}
-					w.Write(data)
+					w.Write(route.RawJSONBody)
 				}
 				return
 			}

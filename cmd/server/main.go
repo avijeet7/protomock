@@ -9,6 +9,7 @@ import (
 	"github.com/avijeet7/protomock/internal/grpcserver"
 	"github.com/avijeet7/protomock/internal/httpserver"
 	"github.com/avijeet7/protomock/internal/loader"
+	"github.com/avijeet7/protomock/internal/models"
 )
 
 func main() {
@@ -17,14 +18,27 @@ func main() {
 	// Start HTTP server only if mocks/http exists
 	httpPath := "mocks/http"
 	if exists(httpPath) {
-		httpRoutes, err := loader.LoadMocks(httpPath)
+		var allHttpRoutes []models.Route
+
+		protoHttpRoutes, err := loader.LoadProtoMocks(httpPath)
 		if err != nil {
-			log.Printf("❌ Failed to load HTTP mocks: %v", err)
-		} else if len(httpRoutes) > 0 {
+			log.Printf("❌ Failed to load proto-associated HTTP mocks: %v", err)
+		} else {
+			allHttpRoutes = append(allHttpRoutes, protoHttpRoutes...)
+		}
+
+		jsonHttpRoutes, err := loader.LoadJSONMocks(httpPath)
+		if err != nil {
+			log.Printf("❌ Failed to load standalone JSON HTTP mocks: %v", err)
+		} else {
+			allHttpRoutes = append(allHttpRoutes, jsonHttpRoutes...)
+		}
+
+		if len(allHttpRoutes) > 0 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				httpserver.StartHTTPServer(httpRoutes)
+				httpserver.StartHTTPServer(allHttpRoutes)
 			}()
 		} else {
 			log.Println("ℹ️ No HTTP routes loaded")
@@ -36,7 +50,7 @@ func main() {
 	// Start gRPC server only if mocks/grpc exists
 	grpcPath := "mocks/grpc"
 	if exists(grpcPath) {
-		grpcRoutes, err := loader.LoadMocks(grpcPath)
+		grpcRoutes, err := loader.LoadProtoMocks(grpcPath)
 		if err != nil {
 			log.Printf("❌ Failed to load gRPC mocks: %v", err)
 		} else if len(grpcRoutes) > 0 {
