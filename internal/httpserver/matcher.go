@@ -2,10 +2,11 @@ package httpserver
 
 import (
 	"encoding/json"
-	"github.com/avijeet7/protomock/internal/models"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/avijeet7/protomock/internal/models"
 )
 
 func matchMethod(r *http.Request, route models.Route) bool {

@@ -2,8 +2,8 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 
@@ -11,16 +11,21 @@ import (
 	"github.com/avijeet7/protomock/internal/httpserver"
 	"github.com/avijeet7/protomock/internal/loader"
 	"github.com/avijeet7/protomock/internal/models"
-	"github.com/avijeet7/protomock/internal/ui"
+	"github.com/avijeet7/protomock/internal/web"
 )
 
 func main() {
+	// Check for grpcurl
+	if _, err := exec.LookPath("grpcurl"); err != nil {
+		log.Println("⚠️ grpcurl not found. gRPC request maker will not be available in the UI.")
+	}
+
 	var wg sync.WaitGroup
 
 	var allHttpRoutes []models.Route
 	var grpcRoutes []models.Route
 
-	// Start HTTP server only if mocks/http exists
+	// Load HTTP routes
 	httpPath := "mocks/http"
 	if exists(httpPath) {
 		protoHttpRoutes, err := loader.LoadProtoMocks(httpPath)
@@ -36,44 +41,45 @@ func main() {
 		} else {
 			allHttpRoutes = append(allHttpRoutes, jsonHttpRoutes...)
 		}
-
-		if len(allHttpRoutes) > 0 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				httpserver.StartHTTPServer(allHttpRoutes)
-			}()
-		} else {
-			log.Println("ℹ️ No HTTP routes loaded")
-		}
-	} else {
-		log.Println("⏩ Skipping HTTP server: mocks/http not found")
 	}
 
-	// Start gRPC server only if mocks/grpc exists
+	// Load gRPC routes
 	grpcPath := "mocks/grpc"
 	if exists(grpcPath) {
 		var err error
-		grpcRoutes, err = loader.LoadProtoMocks(grpcPath) // Assign to the higher-scoped grpcRoutes
+		grpcRoutes, err = loader.LoadProtoMocks(grpcPath)
 		if err != nil {
 			log.Printf("❌ Failed to load gRPC mocks: %v", err)
-		} else if len(grpcRoutes) > 0 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				grpcserver.StartGRPCServer(grpcRoutes)
-			}()
-		} else {
-			log.Println("ℹ️ No gRPC routes loaded")
 		}
-	} else {
-		log.Println("⏩ Skipping gRPC server: mocks/grpc not found")
 	}
 
-	// Register UI handler
-	http.HandleFunc("/protomock-ui", ui.GenerateUI(allHttpRoutes, grpcRoutes))
+	// Start HTTP server
+	if len(allHttpRoutes) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			wd, _ := os.Getwd()
+			uiHandler := web.NewUIHandler(allHttpRoutes, grpcRoutes, filepath.Join(wd, "internal", "web"))
+			httpserver.StartHTTPServer(allHttpRoutes, uiHandler)
+		}()
+	} else {
+		log.Println("ℹ️ No HTTP routes loaded, skipping HTTP server")
+	}
+
+	// Start gRPC server
+	if len(grpcRoutes) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			grpcserver.StartGRPCServer(grpcRoutes)
+		}()
+	} else {
+		log.Println("ℹ️ No gRPC routes loaded, skipping gRPC server")
+	}
+
 	log.Println("🌐 ProtoMock UI available at http://localhost:8085/protomock-ui")
 
+	// Wait for servers to finish
 	wg.Wait()
 	log.Println("✅ ProtoMock shutdown cleanly")
 }

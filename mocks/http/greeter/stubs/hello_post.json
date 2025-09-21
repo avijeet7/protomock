@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/hello/http",
+    "headers": {
+      "X-Test-Header": "mocked3"
+    }
+  },
+  "response": {
+    "status": 200,
+    "message": "greeter.HelloResponse",
+    "body": {
+      "message": "Hello POST!!! from ProtoMock!",
+      "code": 42
+    },
+    "proto": true
+  }
+}

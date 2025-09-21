@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ProtoMock Endpoints</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="container">
+    <h1>ProtoMock Endpoints Overview</h1>
+
+    <h2>HTTP Endpoints</h2>
+    <ul id="http-endpoints"></ul>
+
+    <h2>gRPC Endpoints</h2>
+    <ul id="grpc-endpoints"></ul>
+
+    <div id="request-maker">
+        <h2>Request Maker</h2>
+        <form id="request-form">
+            <select id="request-type" name="type">
+                <option value="http">HTTP</option>
+                <option value="grpc">gRPC</option>
+            </select>
+            <select id="http-method" name="http_method">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+                <option value="PATCH">PATCH</option>
+            </select>
+            <input type="text" id="url" name="url" placeholder="URL or gRPC Method" size="50">
+            <br><br>
+            <textarea id="headers" name="headers" placeholder="Headers (JSON)" rows="5" cols="50"></textarea>
+            <br><br>
+            <textarea id="body" name="body" placeholder="Body (JSON)" rows="10" cols="50"></textarea>
+            <br><br>
+            <button type="submit">Send Request</button>
+        </form>
+    </div>
+
+    <div id="response-area">
+        <h3>Response</h3>
+        <pre id="response-content"></pre>
+        <h3>JSON Body</h3>
+        <pre id="response-json-body"></pre>
+    </div>
+</div>
+
+<script src="/static/js/main.js"></script>
+</body>
+</html>

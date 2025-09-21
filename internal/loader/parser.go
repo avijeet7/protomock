@@ -8,12 +8,22 @@ import (
 	"strings"
 
 	"github.com/avijeet7/protomock/internal/models"
+	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 )
 
 func isProtoFile(name string) bool {
 	return strings.HasSuffix(name, ".proto")
+}
+
+func findMessage(fds []*desc.FileDescriptor, msgName string) *desc.MessageDescriptor {
+	for _, fd := range fds {
+		if msg := fd.FindMessage(msgName); msg != nil {
+			return msg
+		}
+	}
+	return nil
 }
 
 func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
@@ -59,9 +69,10 @@ func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 
 		var msg *dynamic.Message
 		var rawJSONBody []byte
+		var msgDesc *desc.MessageDescriptor
 
 		if s.Response.Proto {
-			msgDesc := findMessage(fds, s.Response.Message)
+			msgDesc = findMessage(fds, s.Response.Message)
 			if msgDesc == nil {
 				log.Printf("Message type %s not found in proto file %s", s.Response.Message, protoPath)
 				continue
@@ -83,6 +94,7 @@ func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 			BodyMatch:    s.Request.Body,
 			Status:       s.Response.Status,
 			Message:      msg,
+			MessageDesc:  msgDesc,
 			ProtoEncoded: s.Response.Proto,
 			RawJSONBody:  rawJSONBody,
 		})

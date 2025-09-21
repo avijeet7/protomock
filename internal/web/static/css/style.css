@@ -1,0 +1,116 @@
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+h1 {
+    color: #0056b3;
+}
+
+h2 {
+    color: #0056b3;
+    border-bottom: 2px solid #0056b3;
+    padding-bottom: 5px;
+    margin-top: 30px;
+}
+
+.container {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+li {
+    background-color: #e9ecef;
+    margin-bottom: 8px;
+    padding: 10px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+li:hover {
+    background-color: #dcdcdc;
+}
+
+li strong {
+    min-width: 80px;
+    display: inline-block;
+    color: #007bff;
+}
+
+li span {
+    margin-left: 10px;
+}
+
+.http-method {
+    font-weight: bold;
+    margin-right: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    color: white;
+}
+
+.GET {
+    background-color: #28a745;
+}
+
+.POST {
+    background-color: #007bff;
+}
+
+.PUT {
+    background-color: #ffc107;
+}
+
+.DELETE {
+    background-color: #dc3545;
+}
+
+.PATCH {
+    background-color: #6f42c1;
+}
+
+.OTHER {
+    background-color: #6c757d;
+}
+
+.proto-type {
+    background-color: #17a2b8;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    margin-left: 10px;
+}
+
+.json-type {
+    background-color: #fd7e14;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    margin-left: 10px;
+}
+
+#request-maker {
+    margin-top: 40px;
+}
+
+#response-area {
+    margin-top: 20px;
+    white-space: pre-wrap;
+    background-color: #e9ecef;
+    padding: 10px;
+    border-radius: 4px;
+}
