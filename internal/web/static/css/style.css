@@ -1,4 +1,3 @@
-
 body {
     font-family: Arial, sans-serif;
     margin: 20px;
@@ -8,6 +7,7 @@ body {
 
 h1 {
     color: #0056b3;
+    text-align: center;
 }
 
 h2 {
@@ -31,33 +31,23 @@ ul {
 
 li {
     background-color: #e9ecef;
-    margin-bottom: 8px;
-    padding: 10px;
-    border-radius: 4px;
+    margin-bottom: 15px;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.endpoint-header {
     display: flex;
     align-items: center;
-    cursor: pointer;
-}
-
-li:hover {
-    background-color: #dcdcdc;
-}
-
-li strong {
-    min-width: 80px;
-    display: inline-block;
-    color: #007bff;
-}
-
-li span {
-    margin-left: 10px;
+    margin-bottom: 10px;
 }
 
 .http-method {
     font-weight: bold;
     margin-right: 10px;
-    padding: 3px 8px;
-    border-radius: 3px;
+    padding: 5px 10px;
+    border-radius: 5px;
     color: white;
 }
 
@@ -85,32 +75,43 @@ li span {
     background-color: #6c757d;
 }
 
+.endpoint-url {
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
 .proto-type {
     background-color: #17a2b8;
     color: white;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 0.8em;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.9em;
     margin-left: 10px;
 }
 
 .json-type {
     background-color: #fd7e14;
     color: white;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 0.8em;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.9em;
     margin-left: 10px;
 }
 
-#request-maker {
-    margin-top: 40px;
+.match-details {
+    margin-top: 10px;
 }
 
-#response-area {
-    margin-top: 20px;
-    white-space: pre-wrap;
-    background-color: #e9ecef;
+.match-details h4 {
+    margin-top: 0;
+    margin-bottom: 5px;
+    color: #0056b3;
+}
+
+.match-details pre {
+    background-color: #f8f9fa;
     padding: 10px;
-    border-radius: 4px;
+    border-radius: 5px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }

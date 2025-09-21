@@ -15,9 +15,11 @@ type uiData struct {
 }
 
 type httpEndpoint struct {
-	Method  string `json:"method"`
-	URL     string `json:"url"`
-	IsProto bool   `json:"is_proto"`
+	Method      string          `json:"method"`
+	URL         string          `json:"url"`
+	IsProto     bool            `json:"is_proto"`
+	HeaderMatch json.RawMessage `json:"header_match,omitempty"`
+	BodyMatch   json.RawMessage `json:"body_match,omitempty"`
 }
 
 func NewUIHandler(httpRoutes []models.Route, grpcRoutes []models.Route, webDir string) http.Handler {
@@ -49,10 +51,15 @@ func getEndpointData(httpRoutes []models.Route, grpcRoutes []models.Route) uiDat
 	for _, route := range httpRoutes {
 		key := route.Method + route.URL
 		if _, exists := httpEndpointsMap[key]; !exists {
+			headerMatch, _ := json.Marshal(route.HeaderMatch)
+			bodyMatch, _ := json.Marshal(route.BodyMatch)
+
 			httpEndpointsMap[key] = httpEndpoint{
-				Method:  route.Method,
-				URL:     route.URL,
-				IsProto: route.ProtoEncoded,
+				Method:      route.Method,
+				URL:         route.URL,
+				IsProto:     route.ProtoEncoded,
+				HeaderMatch: headerMatch,
+				BodyMatch:   bodyMatch,
 			}
 		}
 	}
