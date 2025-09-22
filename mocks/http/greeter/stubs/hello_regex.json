@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/hello/[0-9]+/[a-z]+"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "message": "Hello from regex"
+    }
+  }
+}

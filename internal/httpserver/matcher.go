@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/avijeet7/protomock/internal/models"
@@ -13,9 +14,25 @@ func matchMethod(r *http.Request, route models.Route) bool {
 	return r.Method == route.Method
 }
 
+func isRegexURL(url string) bool {
+	return strings.ContainsAny(url, "*+?()[]{}")
+}
+
 func matchPath(r *http.Request, route models.Route) bool {
 	// Strip query params before matching
-	return strings.Split(r.URL.Path, "?")[0] == route.URL
+	path := strings.Split(r.URL.Path, "?")[0]
+
+	if isRegexURL(route.URL) {
+		regex := "^" + route.URL + "$"
+		re, err := regexp.Compile(regex)
+		if err != nil {
+			// If the route URL is not a valid regex, perform exact match
+			return path == route.URL
+		}
+		return re.MatchString(path)
+	}
+
+	return path == route.URL
 }
 
 func matchHeaders(r *http.Request, route models.Route) bool {
