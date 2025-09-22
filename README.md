@@ -14,6 +14,8 @@
 - 🤖 Supports **Protobuf or JSON** response encoding
 - 🛠 gRPC reflection for `grpcurl` debugging
 - 🔐 Optional header and partial body matching (WireMock style)
+- 💻 Web UI to view configured mocks
+- 📝 Supports plain JSON mocks for http endpoints
 - 🧰 Clean, extensible codebase with modular separation
 
 ---
@@ -67,6 +69,43 @@
      }
    }
    ```
+
+---
+
+## ✨ Web UI
+
+ProtoMock includes a web interface to view all configured mock endpoints. Simply navigate to `http://localhost:8085/protomock-ui` in your browser to see a list of all loaded HTTP and gRPC stubs.
+
+## 📝 Plain JSON Mocks
+
+For HTTP endpoints, you can now use plain JSON mocks without a `.proto` file. This is useful for mocking simple REST APIs. To use this feature, create a `stubs` directory inside `mocks/http/<mockName>/` and place your JSON files there. The server will automatically pick them up.
+
+In the stub file, you can omit the `response.message` and `response.proto` fields. For example:
+
+```json
+{
+  "request": {
+    "method": "GET",
+    "url": "/api/v1/users"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": [
+      {
+        "id": 1,
+        "name": "John Doe"
+      },
+      {
+        "id": 2,
+        "name": "Jane Doe"
+      }
+    ]
+  }
+}
+```
 
 ---
 
