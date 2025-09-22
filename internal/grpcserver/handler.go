@@ -1,10 +1,10 @@
 package grpcserver
 
 import (
-	"github.com/jhump/protoreflect/dynamic"
 	"log"
 
 	"github.com/avijeet7/protomock/internal/models"
+	"github.com/jhump/protoreflect/dynamic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )

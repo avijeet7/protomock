@@ -17,4 +17,5 @@ type Route struct {
 	MessageDesc  *desc.MessageDescriptor
 	Message      *dynamic.Message // response message
 	ProtoEncoded bool
+	RawJSONBody  []byte
 }
