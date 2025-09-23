@@ -31,6 +31,30 @@ func LoadProtoMocks(root string) ([]models.Route, error) {
 	return routes, nil
 }
 
+// LoadJSONMocks walks the provided root directory and loads all standalone JSON stub combinations.
+func LoadJSONMocks(root string) ([]models.Route, error) {
+	var routes []models.Route
+
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && d.Name() == "stubs" {
+			newRoutes, err := parseStandaloneJSONStubs(path)
+			if err == nil {
+				routes = append(routes, newRoutes...)
+			}
+			return filepath.SkipDir // Skip subdirectories of this stubs directory
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return routes, nil
+}
+
 // parseStandaloneJSONStubs parses JSON stub files from a given directory.
 func parseStandaloneJSONStubs(stubDir string) ([]models.Route, error) {
 	var routes []models.Route
@@ -58,6 +82,10 @@ func parseStandaloneJSONStubs(stubDir string) ([]models.Route, error) {
 			continue
 		}
 
+		if s.Response.Proto {
+			continue
+		}
+
 		// For standalone JSON stubs, ensure ProtoEncoded is false and RawJSONBody is populated
 		routes = append(routes, models.Route{
 			URL:          s.Request.URL,
@@ -68,46 +96,8 @@ func parseStandaloneJSONStubs(stubDir string) ([]models.Route, error) {
 			Message:      nil, // No protobuf message for standalone JSON
 			ProtoEncoded: false,
 			RawJSONBody:  s.Response.Body,
+			FilePath:     stubPath,
 		})
-	}
-	return routes, nil
-}
-
-// LoadJSONMocks walks the provided root directory and loads all standalone JSON stub combinations.
-func LoadJSONMocks(root string) ([]models.Route, error) {
-	var routes []models.Route
-
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() && d.Name() == "stubs" {
-			// Check if this "stubs" directory is not a child of a proto file's directory
-			// This is a heuristic: if the parent directory does not contain a .proto file,
-			// then this "stubs" directory is considered standalone.
-			parentDir := filepath.Dir(path)
-			hasProto := false
-			parentEntries, _ := os.ReadDir(parentDir)
-			for _, entry := range parentEntries {
-				if !entry.IsDir() && isProtoFile(entry.Name()) {
-					hasProto = true
-					break
-				}
-			}
-
-			if !hasProto {
-				newRoutes, err := parseStandaloneJSONStubs(path)
-				if err == nil {
-					routes = append(routes, newRoutes...)
-				}
-				return filepath.SkipDir // Skip subdirectories of this stubs directory
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
 	}
 	return routes, nil
 }

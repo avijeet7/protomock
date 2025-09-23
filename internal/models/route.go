@@ -18,4 +18,5 @@ type Route struct {
 	Message      *dynamic.Message // response message
 	ProtoEncoded bool
 	RawJSONBody  []byte
+	FilePath     string // Path to the stub file
 }

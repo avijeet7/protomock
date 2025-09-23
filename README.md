@@ -12,6 +12,7 @@
 - 🧠 JSON stub bodies auto-marshaled to **Protobuf**
 - 🔍 Header & body request **matching for HTTP and gRPC**
 - 🤖 Supports **Protobuf or JSON** response encoding
+- 🎯 Regex URL matching for HTTP endpoints
 - 🛠 gRPC reflection for `grpcurl` debugging
 - 🔐 Optional header and partial body matching (WireMock style)
 - 💻 Web UI to view configured mocks
@@ -107,6 +108,29 @@ In the stub file, you can omit the `response.message` and `response.proto` field
 }
 ```
 
+## 🎯 Regex URL Matching
+
+ProtoMock supports regex matching for HTTP endpoint URLs. This allows you to match dynamic URLs with a single stub.
+
+To use this feature, simply provide a valid regex in the `url` field of your stub file. For example:
+
+```json
+{
+  "request": {
+    "method": "GET",
+    "url": "/hello/[0-9]+/world"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "message": "Hello from regex world"
+    }
+  }
+}
+```
+
+This stub will match any URL that starts with `/hello/`, followed by one or more digits, and ends with `/world`. For example, it will match `/hello/123/world` and `/hello/456/world`.
+
 ---
 
 ## 📁 Project Structure
@@ -171,6 +195,12 @@ curl -X POST http://localhost:8085/hello/http \
   -H "Content-Type: application/json" \
   -H "X-Test-Header: mocked" \
   -d '{"user_id": "abc123"}'
+```
+
+### 🔗 Regex HTTP Example
+
+```bash
+curl -X GET http://localhost:8085/hello/123/world
 ```
 
 ### 🔗 gRPC Example

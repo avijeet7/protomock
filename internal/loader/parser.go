@@ -62,6 +62,10 @@ func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 			continue
 		}
 
+		if !s.Response.Proto {
+			continue
+		}
+
 		if s.Response.Message == "" || s.Response.Status == 0 || s.Request.URL == "" {
 			log.Printf("Missing required fields in stub %s", stubPath)
 			continue
@@ -97,6 +101,7 @@ func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 			MessageDesc:  msgDesc,
 			ProtoEncoded: s.Response.Proto,
 			RawJSONBody:  rawJSONBody,
+			FilePath:     stubPath,
 		})
 	}
 

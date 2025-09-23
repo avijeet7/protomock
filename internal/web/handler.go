@@ -49,7 +49,7 @@ func getEndpointData(httpRoutes []models.Route, grpcRoutes []models.Route) uiDat
 	// Prepare HTTP endpoints data
 	httpEndpointsMap := make(map[string]httpEndpoint)
 	for _, route := range httpRoutes {
-		key := route.Method + route.URL
+		key := route.FilePath // Use FilePath as a unique key
 		if _, exists := httpEndpointsMap[key]; !exists {
 			headerMatch, _ := json.Marshal(route.HeaderMatch)
 			bodyMatch, _ := json.Marshal(route.BodyMatch)
