@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"regexp"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
@@ -18,5 +19,6 @@ type Route struct {
 	Message      *dynamic.Message // response message
 	ProtoEncoded bool
 	RawJSONBody  []byte
-	FilePath     string // Path to the stub file
+	FilePath     string         // Path to the stub file
+	PathRegex    *regexp.Regexp // Compiled URL pattern for regex routes (nil for exact routes)
 }

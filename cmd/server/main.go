@@ -53,18 +53,17 @@ func main() {
 		}
 	}
 
-	// Start HTTP server
-	if len(allHttpRoutes) > 0 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			wd, _ := os.Getwd()
-			uiHandler := web.NewUIHandler(allHttpRoutes, grpcRoutes, filepath.Join(wd, "internal", "web"))
-			httpserver.StartHTTPServer(allHttpRoutes, uiHandler)
-		}()
-	} else {
-		log.Println("ℹ️ No HTTP routes loaded, skipping HTTP server")
+	// Start HTTP server (always: it also serves the UI, even with no HTTP mocks)
+	if len(allHttpRoutes) == 0 {
+		log.Println("ℹ️ No HTTP routes loaded; HTTP server will only serve the UI")
 	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		wd, _ := os.Getwd()
+		uiHandler := web.NewUIHandler(allHttpRoutes, grpcRoutes, filepath.Join(wd, "internal", "web"))
+		httpserver.StartHTTPServer(allHttpRoutes, uiHandler)
+	}()
 
 	// Start gRPC server
 	if len(grpcRoutes) > 0 {
