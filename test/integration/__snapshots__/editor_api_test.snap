@@ -1,0 +1,99 @@
+
+[TestEditorAPI_ListMocks - 1]
+{
+ "mocks": [
+  {
+   "kind": "http",
+   "messages": [
+    "greeter.HelloResponse"
+   ],
+   "methods": [],
+   "name": "greeter",
+   "proto_files": [
+    {
+     "content": "syntax = \"proto3\";\npackage greeter;\n\nmessage HelloResponse {\n  string message = 1;\n  int32 code = 2;\n  repeated string tags = 3;\n}\n",
+     "name": "greeter.proto"
+    }
+   ],
+   "stubs": [
+    {
+     "content": "{\"priority\":5,\"request\":{\"method\":\"GET\",\"url\":\"/hello\"},\"response\":{\"status\":201,\"message\":\"greeter.HelloResponse\",\"body\":{\"message\":\"hi\",\"code\":7},\"proto\":true}}",
+     "file": "hello.json",
+     "method": "GET",
+     "priority": 5,
+     "status": 201,
+     "url": "/hello"
+    }
+   ]
+  },
+  {
+   "kind": "http",
+   "messages": [],
+   "methods": [],
+   "name": "plain",
+   "proto_files": [],
+   "stubs": [
+    {
+     "content": "{\"request\":{\"url\":\"/no-method\"},\"response\":{}}",
+     "error": "request.method is required for HTTP stubs (e.g. GET, POST)",
+     "file": "broken.json",
+     "url": "/no-method"
+    },
+    {
+     "content": "{\"request\":{\"method\":\"GET\",\"url\":\"/users\"},\"response\":{\"body\":[\"bob\"]}}",
+     "file": "list.json",
+     "method": "GET",
+     "url": "/users"
+    }
+   ]
+  },
+  {
+   "kind": "grpc",
+   "messages": [
+    "test.HelloReply",
+    "test.HelloRequest"
+   ],
+   "methods": [
+    {
+     "input": "test.HelloRequest",
+     "output": "test.HelloReply",
+     "path": "/test.Greeter/Hello"
+    }
+   ],
+   "name": "greeter",
+   "proto_files": [
+    {
+     "content": "syntax = \"proto3\";\npackage test;\n\nmessage HelloRequest {\n  string user_id = 1;\n}\n\nmessage HelloReply {\n  string message = 1;\n}\n\nservice Greeter {\n  rpc Hello (HelloRequest) returns (HelloReply);\n}\n",
+     "name": "greeter.proto"
+    }
+   ],
+   "stubs": [
+    {
+     "content": "{\n  \"request\": {\"url\": \"/test.Greeter/Hello\", \"body\": {\"user_id\": \"bob\"}},\n  \"response\": {\"status\": 200, \"message\": \"test.HelloReply\", \"body\": {\"message\": \"hi bob\"}, \"proto\": true}\n}",
+     "file": "bob.json",
+     "status": 200,
+     "url": "/test.Greeter/Hello"
+    }
+   ]
+  }
+ ],
+ "mocks_dir": "<Any value>",
+ "problems": [
+  {
+   "error": "request.method is required for HTTP stubs (e.g. GET, POST)",
+   "path": "http/plain/stubs/broken.json"
+  }
+ ],
+ "writable": true
+}
+---
+
+[TestEditorAPI_Template - 1]
+{
+ "code": 0,
+ "message": "",
+ "tags": [
+  ""
+ ]
+}
+---

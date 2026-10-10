@@ -1,276 +1,200 @@
 # 🧪 ProtoMock: Dynamic HTTP & gRPC Mock Server
 
-**ProtoMock** is a powerful Go-based server that dynamically mocks HTTP and gRPC endpoints using `.proto` files and JSON stub responses. It supports advanced matching and flexible configuration, making it ideal for integration testing, sandbox environments, and frontend/backend development workflows.
+**ProtoMock** mocks HTTP and gRPC APIs from `.proto` files and JSON stubs. Point it at a folder of mocks, or build them in the web UI, and it serves them immediately: no code generation, no restarts. Use it for integration tests, sandboxes, and frontend or backend development against services that aren't available.
 
 ---
 
 ## 📦 Features
 
-- ✅ Serve both **HTTP** and **gRPC** endpoints from a single mock server
-- 🔁 Automatically load `.proto` + `stub.json` pairs from `mocks/` folders
-- ⚡ Supports **dynamic path + message type** mapping from stubs
-- 🧠 JSON stub bodies auto-marshaled to **Protobuf**
-- 🔍 Header & body request **matching for HTTP and gRPC**
-- 🤖 Supports **Protobuf or JSON** response encoding
-- 🎯 Regex URL matching for HTTP endpoints
-- 🛠 gRPC reflection for `grpcurl` debugging
-- 🔐 Optional header and partial body matching (WireMock style)
-- 💻 Web UI to view configured mocks
-- 📝 Supports plain JSON mocks for http endpoints
-- 🧰 Clean, extensible codebase with modular separation
+- ✅ **HTTP and gRPC** from one server (`:8085` HTTP + UI, `:8086` gRPC)
+- 💻 **Web UI to create, edit, validate and try mocks**: forms or raw JSON, message templates, live validation
+- 🔁 **Hot reload**: changes in the UI or on disk are live within seconds, no restart
+- 🧠 **Protobuf without codegen**: `.proto` files are compiled at runtime; JSON stub bodies are converted to protobuf
+- 🔍 **WireMock-style matching**: method, exact or regex URL, headers or metadata, partial JSON body
+- 🎚 **Priority** for overlapping stubs; **response headers/metadata** and **delays**
+- 🛰 **gRPC reflection**: `grpcurl list` / `describe` / call without local `.proto` files
+- 🤖 JSON or **protobuf** HTTP responses; plain-JSON HTTP mocks need no `.proto`
+- 🐳 Small Docker image (~42 MB, amd64 + arm64), configurable through flags or environment variables
 
 ---
 
-## 🚀 How to Use
+## 🚀 Quick Start
 
-1. **Start the server**
-   You can run using Docker or from source.
+### With Docker
 
-2. **Create your mocks folder**
-   Your `mocks` directory should follow this structure:
+```bash
+docker run -p 8085:8085 -p 8086:8086 -v $(pwd)/mocks:/app/mocks avijeet7/protomock:latest
+```
 
-   ```text
-   mocks/
-   ├── http/
-   │   └── <mockName>/
-   │       ├── service.proto
-   │       └── stubs/
-   │           ├── stub1.json
-   │           └── stub2.json
-   └── grpc/
-       └── <mockName>/
-           ├── service.proto
-           └── stubs/
-               ├── stub1.json
-               └── stub2.json
-   ```
+Open **http://localhost:8085/protomock-ui** and click **+ New mock**.
 
-3. **Stub Format**
-   Each stub JSON must define:
-   ```json
-   {
-     "request": {
-       "method": "POST",
-       "url": "/test.FakeService/Hello",
-       "headers": {
-         "X-Test-Header": "mocked1"
-       },
-       "body": {
-         "user_id": "abc123"
-       }
-     },
-     "response": {
-       "status": 200,
-       "message": "test.TestResponse",
-       "body": {
-         "message": "Hello from fake service",
-         "code": 200
-       },
-       "proto": true
-     }
-   }
-   ```
+> The UI saves stubs into the mounted folder. Mount it read-only (`:/app/mocks:ro`) to make the UI read-only.
+
+### From source
+
+```bash
+make run          # or: go run ./cmd/server
+```
+
+This serves the sample mocks in [`mocks/`](mocks). The startup log prints the URLs to open. Try them:
+
+```bash
+curl -i http://localhost:8085/hello-json
+curl -X POST http://localhost:8085/hello/http -H "X-Test-Header: mocked3"
+grpcurl -plaintext -H "X-Test-Header: mocked1" localhost:8086 test.FakeService/Hello
+```
+
+### Next to your services (docker-compose)
+
+```yaml
+services:
+  protomock:
+    image: avijeet7/protomock:v2.3.0
+    ports:
+      - "8085:8085"   # host:container. Change the host side if 8085 is taken, e.g. "8888:8085"
+      - "8086:8086"
+    environment:
+      PROTOMOCK_PUBLIC_URL: http://localhost:8085   # match the host port: printed as the UI URL
+      PROTOMOCK_STRICT: "true"                      # fail fast if a stub or .proto is broken
+    volumes:
+      - ./integrationtests/protomock/mocks:/app/mocks
+
+  my-service:
+    environment:
+      FEATURE_FLAGS_URL: http://protomock:8085      # other containers use the container port
+    depends_on:
+      protomock:
+        condition: service_healthy                  # the image has a built-in health check
+```
+
+- **Ports:** other containers always reach ProtoMock on the **container** ports (`protomock:8085`, `protomock:8086`). Only your own browser or test runner uses the host ports.
+- **Health:** the image has a built-in `HEALTHCHECK` (`protomock healthcheck`), so you don't need a custom one. Existing `curl` health checks keep working too.
+- **No `platform: linux/amd64` needed:** the image is multi-arch (amd64 + arm64), so it runs natively on Apple Silicon.
+
+---
+
+## 🧩 How it Works
+
+A **mock** is a folder. A **stub** is one JSON file in its `stubs/` folder: *"when a request looks like this, reply with that"*.
+
+```text
+mocks/
+├── http/
+│   └── users/                  ← an HTTP mock
+│       ├── users.proto         ← optional: only for protobuf responses
+│       └── stubs/
+│           ├── list.json
+│           └── get_by_id.json
+└── grpc/
+    └── shop/                   ← a gRPC mock
+        ├── shop.proto          ← services + messages
+        └── stubs/
+            └── get_item.json
+```
+
+An HTTP stub:
+
+```json
+{
+  "request": {
+    "method": "GET",
+    "url": "/users/[0-9]+",
+    "headers": { "X-Tenant": "acme" }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "X-Request-Id": "mock-1" },
+    "body": { "id": 1, "name": "Bob" }
+  }
+}
+```
+
+A gRPC stub (the response type comes from the method in `shop.proto`):
+
+```json
+{
+  "request": {
+    "url": "/shop.Shop/GetItem",
+    "body": { "id": "42" }
+  },
+  "response": {
+    "body": { "id": "42", "name": "Lamp" }
+  }
+}
+```
+
+**Matching, in short:**
+- A stub matches when its method, URL, headers and body match.
+  - The URL is exact, or an anchored regex.
+  - Body matching is partial: the request must *contain* the stub's fields.
+- Among matching stubs, the highest `priority` wins, then file-name order.
+- No match returns HTTP `404`, or gRPC `NotFound` / `Unimplemented`, **saying why**: the closest stub and the rule it failed, e.g. `header X-Tenant: expected "acme", got "other"`. The same line goes to the server log.
+
+📖 **Full reference: [docs/stubs.md](docs/stubs.md).** It covers every field, every matching rule, and examples for each case.
 
 ---
 
 ## ✨ Web UI
 
-ProtoMock includes a web interface to view all configured mock endpoints. Simply navigate to `http://localhost:8085/protomock-ui` in your browser to see a list of all loaded HTTP and gRPC stubs.
+Open **http://localhost:8085/protomock-ui**.
 
-## 📝 Plain JSON Mocks
+| | |
+|---|---|
+| **Browse** | Every HTTP and gRPC mock and stub, with search and problem markers |
+| **Create** | New HTTP or gRPC mocks (with a sample `.proto`), new stubs, or `+ Stub` straight from a gRPC method |
+| **Edit** | A form for every stub field, or raw JSON, kept in sync; **Insert template** fills a body with every field of a protobuf message |
+| **Validate** | Live, using the same rules as the server, before you save |
+| **Try it** | Send a test request and see the response; protobuf HTTP responses are decoded to JSON |
+| **Protos** | View and edit `.proto` files; edits must compile before they're saved |
 
-For HTTP endpoints, you can now use plain JSON mocks without a `.proto` file. This is useful for mocking simple REST APIs. To use this feature, create a `stubs` directory inside `mocks/http/<mockName>/` and place your JSON files there. The server will automatically pick them up.
-
-In the stub file, you can omit the `response.message` and `response.proto` fields. For example:
-
-```json
-{
-  "request": {
-    "method": "GET",
-    "url": "/api/v1/users"
-  },
-  "response": {
-    "status": 200,
-    "headers": {
-      "Content-Type": "application/json"
-    },
-    "body": [
-      {
-        "id": 1,
-        "name": "John Doe"
-      },
-      {
-        "id": 2,
-        "name": "Jane Doe"
-      }
-    ]
-  }
-}
-```
-
-## 🎯 Regex URL Matching
-
-ProtoMock supports regex matching for HTTP endpoint URLs. This allows you to match dynamic URLs with a single stub.
-
-To use this feature, simply provide a valid regex in the `url` field of your stub file. For example:
-
-```json
-{
-  "request": {
-    "method": "GET",
-    "url": "/hello/[0-9]+/world"
-  },
-  "response": {
-    "status": 200,
-    "body": {
-      "message": "Hello from regex world"
-    }
-  }
-}
-```
-
-This stub will match any URL that starts with `/hello/`, followed by one or more digits, and ends with `/world`. For example, it will match `/hello/123/world` and `/hello/456/world`.
-
----
-
-## 📁 Project Structure
-
-```text
-protomock/
-├── cmd/server/            # main: load config + mocks, start servers
-├── internal/
-│   ├── config/            # flags / env vars / defaults
-│   ├── loader/            # reads mocks/ (proto + JSON stubs) into routes
-│   ├── models/            # Stub (file format) and Route (loaded mock)
-│   ├── match/             # shared partial JSON body matching
-│   ├── httpserver/        # HTTP router, matching, responses
-│   ├── grpcserver/        # gRPC catch-all handler and matching
-│   └── web/               # UI handler, templates, static assets
-├── test/
-│   ├── integration/       # real loader + servers on random ports
-│   └── benchmark/         # performance benchmarks
-├── mocks/                 # sample mocks (http/ and grpc/)
-├── Makefile
-└── docker-compose.yml
-```
-
----
-
-## 🚀 Running the Project
-
-### ▶️ For Local Development
-
-```bash
-make run              # or: go run ./cmd/server
-```
-
-Or with Docker:
-
-```bash
-docker compose up --build
-```
-
-### ▶️ From DockerHub (User Usage)
-
-```bash
-docker run -p 8085:8085 -p 8086:8086 \
-  -v $(pwd)/mymocks:/app/mocks \
-  avijeet7/protomock:latest
-```
-
-> Replace `$(pwd)/mymocks` with your actual mocks directory.
+📖 **UI guide and its JSON API (for scripts and CI): [docs/ui.md](docs/ui.md)**
 
 ---
 
 ## ⚙️ Configuration
 
-Every setting can be passed as a flag or an environment variable.
-Precedence: **flag > environment variable > default**.
+Every setting is a flag or an environment variable. **Precedence: flag > environment variable > default.**
 
 | Flag | Environment variable | Default | Description |
 |---|---|---|---|
 | `-http-addr` | `PROTOMOCK_HTTP_ADDR` | `:8085` | HTTP mocks and UI listen address |
 | `-grpc-addr` | `PROTOMOCK_GRPC_ADDR` | `:8086` | gRPC mocks listen address |
 | `-mocks-dir` | `PROTOMOCK_MOCKS_DIR` | `mocks` | Folder containing `http/` and `grpc/` mocks |
-| `-web-dir` | `PROTOMOCK_WEB_DIR` | `internal/web` | UI assets folder |
+| `-reload-interval` | `PROTOMOCK_RELOAD_INTERVAL` | `2s` | How often to check the mocks folder for changes (`0` disables) |
+| `-strict` | `PROTOMOCK_STRICT` | `false` | Fail startup if any stub or `.proto` doesn't load; the health check is unhealthy while any doesn't. Recommended for CI. |
+| `-public-url` | `PROTOMOCK_PUBLIC_URL` | *(listen address)* | Base URL printed for the UI at startup, e.g. `http://localhost:8888` when Docker maps a different host port |
+| `-web-dir` | `PROTOMOCK_WEB_DIR` | *(built in)* | Serve UI files from a folder instead (for UI development) |
 
 ```bash
 go run ./cmd/server -http-addr :9085 -grpc-addr :9086
 docker run -p 9085:9085 -e PROTOMOCK_HTTP_ADDR=:9085 avijeet7/protomock:latest
 ```
 
-If a port is already in use, ProtoMock exits with an error instead of running half-started.
+- **Port in use:** ProtoMock exits with an error instead of running half-started.
+- **Paths:** the UI and its API live under `/protomock-ui/`; every other path is free for your mocks.
+- **Startup URLs:** the startup log prints the URLs for the ports ProtoMock actually listens on. Inside a container it can't see your compose port mapping, so set `PROTOMOCK_PUBLIC_URL` to print the exact host URL.
 
-### Matching rules
+### Health check
 
-- **Method + URL**: exact match, or a regex (anchored: the whole path must match).
-- **Headers**: every header in the stub must be present with the same value (other headers are ignored). For gRPC these are request metadata.
-- **Body**: partial match. Every field in the stub must be in the request (nested objects too); extra request fields are ignored; arrays must be equal.
-  For gRPC, stub bodies may use either the `.proto` field names (`user_id`) or camelCase (`userId`).
-- **Order**: stubs are tried in file-name order and the first match wins, so name more specific stubs so they sort first.
-- **No match**: HTTP returns `404`; gRPC returns `NotFound` (stubs exist for the method but none matched) or `Unimplemented` (no stubs for the method).
-
----
-
-## 🧪 Trying the Sample Mocks
-
-### 🔗 HTTP Example
-
-```bash
-curl -X POST http://localhost:8085/hello/http \
-  -H "Content-Type: application/json" \
-  -H "X-Test-Header: mocked3" \
-  -d '{"user_id": "abc123"}'
-```
-
-### 🔗 Regex HTTP Example
-
-```bash
-curl -X GET http://localhost:8085/hello/123/world
-```
-
-### 🔗 gRPC Example
-
-```bash
-grpcurl -plaintext \
-  -import-path mocks/grpc/hello -proto hello.proto \
-  -H "X-Test-Header: mocked1" \
-  -d '{}' \
-  localhost:8086 test.FakeService/Hello
-```
-
-Use `X-Test-Header: mocked2` to get the other stub's response.
+| | |
+|---|---|
+| `protomock healthcheck` | Exit `0` when the HTTP and gRPC servers answer. It reads the same flags and env vars as the server. The Docker image uses it as its `HEALTHCHECK`. |
+| `GET /protomock-ui/api/health` | `200 {"status":"ok", "mocks":…, "problems":…}`, or `503` in strict mode while any mock file fails to load |
 
 ---
 
 ## 🛠 Development
 
-Requires Go (version in `go.mod`). Optional: `golangci-lint`, `grpcurl`, Docker.
+```bash
+make test               # unit tests
+make test-integration   # integration tests (real servers on random ports)
+make ci                 # everything CI runs: tidy, vet, lint, unit + integration with -race
+```
 
-| Command | What it does |
-|---|---|
-| `make run` | Run the server |
-| `make test` | Unit tests (fast, no network) |
-| `make test-integration` | Integration tests: real loader + servers on random local ports |
-| `make bench` | Benchmarks |
-| `make lint` | `golangci-lint` (config in `.golangci.yml`) |
-| `make cover` | Unit test coverage report in the browser |
-| `make ci` | Same checks as GitHub CI (tidy, vet, lint, unit + integration with `-race`) |
-
-### Test layout
-
-| Kind | Location | Build tag |
-|---|---|---|
-| Unit | next to the code: `internal/**/*_test.go` | none (default) |
-| Integration | `test/integration/` | `integration` |
-| Benchmark | `test/benchmark/` | `bench` |
-
-Plain `go test ./...` runs only unit tests. Integration tests and benchmarks are excluded by their build tags.
-
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, unit tests, integration tests and a Docker build on every push to `main` and on every pull request.
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the architecture, how a request flows through the code, the test layout (unit, integration, snapshot, benchmark), and how to work on the UI.
 
 ---
 
 ## 📌 License
 
-MIT — free to use and modify.
+MIT: free to use and modify.

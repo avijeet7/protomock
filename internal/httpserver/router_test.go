@@ -29,7 +29,8 @@ func TestNewRouter(t *testing.T) {
 	}{
 		{"root redirects to UI", "/", http.StatusFound, ""},
 		{"UI page is served", "/protomock-ui", http.StatusOK, "ui"},
-		{"UI API is served", "/api/endpoints", http.StatusOK, "ui"},
+		{"UI API is served", "/protomock-ui/api/endpoints", http.StatusOK, "ui"},
+		{"former UI path is free for mocks", "/api/endpoints", http.StatusNotFound, ""},
 		{"exact mock", "/users", http.StatusOK, `"users"`},
 		{"trailing-slash stub is exact, not a prefix", "/api/anything", http.StatusNotFound, ""},
 		{"unknown path is 404", "/nope", http.StatusNotFound, ""},

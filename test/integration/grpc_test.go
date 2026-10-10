@@ -6,19 +6,19 @@ package integration
 import (
 	"context"
 	"net"
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/avijeet7/protomock/internal/grpcserver"
 	"github.com/avijeet7/protomock/internal/loader"
-	"github.com/jhump/protoreflect/desc/protoparse"
-	"github.com/jhump/protoreflect/dynamic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 const greeterProto = `syntax = "proto3";
@@ -55,29 +55,24 @@ func greeterStubWithField(field, userID, reply string) string {
 func startGreeter(t *testing.T, stubs map[string]string) *grpc.ClientConn {
 	t.Helper()
 
-	dir := filepath.Join(t.TempDir(), "greeter")
-	if err := os.MkdirAll(filepath.Join(dir, "stubs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "greeter.proto"), []byte(greeterProto), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	root := t.TempDir()
+	files := map[string]string{"grpc/greeter/greeter.proto": greeterProto}
 	for name, content := range stubs {
-		if err := os.WriteFile(filepath.Join(dir, "stubs", name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		files["grpc/greeter/stubs/"+name] = content
 	}
+	writeFiles(t, root, files)
 
-	routes, err := loader.LoadProtoMocks(filepath.Dir(dir))
-	if err != nil || len(routes) != len(stubs) {
-		t.Fatalf("loaded %d routes (err=%v), want %d", len(routes), err, len(stubs))
+	set, err := loader.LoadAll(root)
+	if err != nil || len(set.GRPC) != len(stubs) {
+		t.Fatalf("loaded %d routes (err=%v, problems=%v), want %d", len(set.GRPC), err, set.Problems, len(stubs))
 	}
+	routes := set.GRPC
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0") // port 0 = any free port
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := grpcserver.NewGRPCServer(routes)
+	server := grpcserver.NewServer(routes)
 	go func() { _ = server.Serve(lis) }()
 	t.Cleanup(server.Stop)
 
@@ -99,24 +94,19 @@ func callHello(t *testing.T, conn *grpc.ClientConn, userID string) (string, erro
 func callGreeter(t *testing.T, conn *grpc.ClientConn, method, userID string) (string, error) {
 	t.Helper()
 
-	fds, err := (&protoparse.Parser{Accessor: protoparse.FileContentsFromMap(map[string]string{
-		"greeter.proto": greeterProto,
-	})}).ParseFiles("greeter.proto")
-	if err != nil {
-		t.Fatal(err)
-	}
-	reqDesc, replyDesc := fds[0].FindMessage("test.HelloRequest"), fds[0].FindMessage("test.HelloReply")
+	fd := compileProto(t, "greeter.proto", greeterProto)
+	reqDesc, replyDesc := fd.Messages().ByName("HelloRequest"), fd.Messages().ByName("HelloReply")
 
-	req := dynamic.NewMessage(reqDesc)
-	req.SetFieldByName("user_id", userID)
-	reply := dynamic.NewMessage(replyDesc)
+	req := dynamicpb.NewMessage(reqDesc)
+	req.Set(reqDesc.Fields().ByName("user_id"), protoreflect.ValueOfString(userID))
+	reply := dynamicpb.NewMessage(replyDesc)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := conn.Invoke(ctx, method, req, reply); err != nil {
 		return "", err
 	}
-	return reply.GetFieldByName("message").(string), nil
+	return reply.Get(replyDesc.Fields().ByName("message")).String(), nil
 }
 
 func TestGRPC_BodyMatchUsesRequestType(t *testing.T) {
@@ -190,4 +180,83 @@ func TestGRPC_UnmatchedCallsReturnStatusErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGRPC_BodyMatchOnZeroValueField(t *testing.T) {
+	// proto3 doesn't send zero values on the wire; stubs should still be able to match them.
+	conn := startGreeter(t, map[string]string{
+		"empty.json": greeterStub("", "hi nobody"),
+	})
+
+	got, err := callHello(t, conn, "")
+	if err != nil {
+		t.Fatalf("Hello(user_id=\"\") error: %v", err)
+	}
+	if got != "hi nobody" {
+		t.Errorf("reply = %q, want %q", got, "hi nobody")
+	}
+}
+
+func TestGRPC_ResponseMetadataAndDelay(t *testing.T) {
+	conn := startGreeter(t, map[string]string{
+		"slow.json": `{
+  "request": {"url": "/test.Greeter/Hello"},
+  "response": {"headers": {"X-Trace-Id": "t-1"}, "delay_ms": 100, "body": {"message": "slow"}}
+}`,
+	})
+
+	fd := compileProto(t, "greeter.proto", greeterProto)
+	req := dynamicpb.NewMessage(fd.Messages().ByName("HelloRequest"))
+	reply := dynamicpb.NewMessage(fd.Messages().ByName("HelloReply"))
+
+	t.Run("metadata and delay", func(t *testing.T) {
+		var header metadata.MD
+		start := time.Now()
+		if err := conn.Invoke(context.Background(), "/test.Greeter/Hello", req, reply, grpc.Header(&header)); err != nil {
+			t.Fatal(err)
+		}
+		if elapsed := time.Since(start); elapsed < 100*time.Millisecond {
+			t.Errorf("replied after %v, want at least 100ms", elapsed)
+		}
+		if got := header.Get("x-trace-id"); len(got) != 1 || got[0] != "t-1" {
+			t.Errorf("x-trace-id metadata = %v, want [t-1]", got)
+		}
+	})
+
+	t.Run("client deadline shorter than delay", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+		err := conn.Invoke(ctx, "/test.Greeter/Hello", req, reply)
+		if status.Code(err) != codes.DeadlineExceeded {
+			t.Errorf("code = %v, want DeadlineExceeded", status.Code(err))
+		}
+	})
+}
+
+func TestGRPC_NoMatchMessagesExplainWhy(t *testing.T) {
+	conn := startGreeter(t, map[string]string{
+		"alice.json": `{"request":{"url":"/test.Greeter/Hello","headers":{"x-tenant":"acme"},"body":{"user_id":"alice"}},"response":{"body":{"message":"hi"}}}`,
+	})
+
+	t.Run("closest stub and failed rules", func(t *testing.T) {
+		_, err := callHello(t, conn, "carol")
+		msg := status.Convert(err).Message()
+		for _, want := range []string{
+			"no stub matched /test.Greeter/Hello (1 stub)",
+			"greeter/stubs/alice.json",
+			`metadata x-tenant: missing (expected "acme")`,
+			`body.user_id: expected "alice", got "carol"`,
+		} {
+			if !strings.Contains(msg, want) {
+				t.Errorf("message %q should contain %q", msg, want)
+			}
+		}
+	})
+
+	t.Run("unknown method lists mocked methods", func(t *testing.T) {
+		_, err := callGreeter(t, conn, "/test.Greeter/Helo", "x")
+		if msg := status.Convert(err).Message(); !strings.Contains(msg, "Mocked methods: /test.Greeter/Hello") {
+			t.Errorf("message = %q, want it to list /test.Greeter/Hello", msg)
+		}
+	})
 }

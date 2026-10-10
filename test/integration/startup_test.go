@@ -44,13 +44,13 @@ func expectStartError(t *testing.T, start func() error) {
 func TestStartup_HTTPPortInUseReturnsError(t *testing.T) {
 	addr := occupyPort(t)
 	expectStartError(t, func() error {
-		return httpserver.StartHTTPServer(addr, nil, http.NotFoundHandler())
+		return httpserver.NewServer(nil, http.NotFoundHandler()).ListenAndServe(addr)
 	})
 }
 
 func TestStartup_GRPCPortInUseReturnsError(t *testing.T) {
 	addr := occupyPort(t)
 	expectStartError(t, func() error {
-		return grpcserver.StartGRPCServer(addr, nil)
+		return grpcserver.NewServer(nil).ListenAndServe(addr)
 	})
 }

@@ -1,12 +1,12 @@
-version: '3.8'
-
 services:
   protomock:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8085:8085"   # HTTP
-      - "8086:8086"   # gRPC
+      - "8085:8085"   # HTTP mocks + UI
+      - "8086:8086"   # gRPC mocks
     volumes:
-      - ./mocks:/app/mocks:ro
+      # Read-write so stubs created or edited in the UI are saved to ./mocks.
+      # Use ./mocks:/app/mocks:ro to make the UI read-only.
+      - ./mocks:/app/mocks
