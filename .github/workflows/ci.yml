@@ -35,6 +35,9 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.7.2
+          # Skip `config verify`: it downloads a JSON schema from golangci-lint.run and
+          # fails CI when that site is slow. The lint run still validates .golangci.yml.
+          verify: false
 
   unit:
     name: Unit tests
