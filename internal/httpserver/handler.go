@@ -15,7 +15,7 @@ func makeGroupedHandler(routes []models.Route) http.HandlerFunc {
 		for _, route := range routes {
 			if matchMethod(r, route) && matchHeaders(r, route) && matchBody(body, route) {
 				log.Printf("[HTTP] ✅ Serving mock for %s %s", r.Method, r.URL.Path)
-				writeResponse(w, route)
+				writeResponse(w, r, route)
 				return
 			}
 		}
@@ -37,7 +37,7 @@ func makeMockHandler(urlToRoutes map[string][]models.Route, regexRoutes []models
 		for _, route := range regexRoutes {
 			if matchPath(r, route) && matchMethod(r, route) && matchHeaders(r, route) && matchBody(body, route) {
 				log.Printf("[HTTP] ✅ Serving mock for %s %s", r.Method, r.URL.Path)
-				writeResponse(w, route)
+				writeResponse(w, r, route)
 				return
 			}
 		}
@@ -54,7 +54,11 @@ func makeMockHandler(urlToRoutes map[string][]models.Route, regexRoutes []models
 // writeResponse writes the stubbed response for a matched route.
 // Headers must be set before WriteHeader, and the body is encoded first so
 // an encoding failure can still be reported as a 500.
-func writeResponse(w http.ResponseWriter, route models.Route) {
+func writeResponse(w http.ResponseWriter, r *http.Request, route models.Route) {
+	if !route.WaitDelay(r.Context()) {
+		return // client gave up while we were delaying
+	}
+
 	contentType := "application/json"
 	body := route.RawJSONBody
 
@@ -69,6 +73,9 @@ func writeResponse(w http.ResponseWriter, route models.Route) {
 	}
 
 	w.Header().Set("Content-Type", contentType)
+	for key, value := range route.Headers {
+		w.Header().Set(key, value) // stub headers may override the default Content-Type
+	}
 	w.WriteHeader(route.Status)
 	_, _ = w.Write(body) // a write error means the client went away; nothing to do
 }

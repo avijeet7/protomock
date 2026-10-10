@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/avijeet7/protomock/internal/match"
 	"github.com/avijeet7/protomock/internal/models"
@@ -45,12 +46,19 @@ func BuildRoute(kind Kind, stub models.Stub, protos *Protos) (models.Route, erro
 		return models.Route{}, stubErrorf("response.body is not valid JSON")
 	}
 
+	if resp.DelayMs < 0 {
+		return models.Route{}, stubErrorf("response.delay_ms must not be negative")
+	}
+
 	route := models.Route{
 		URL:         req.URL,
 		Method:      strings.ToUpper(req.Method),
 		HeaderMatch: req.Headers,
 		BodyMatch:   req.Body,
 		Status:      resp.Status,
+		Headers:     resp.Headers,
+		Delay:       time.Duration(resp.DelayMs) * time.Millisecond,
+		Priority:    stub.Priority,
 	}
 
 	switch kind {

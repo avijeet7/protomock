@@ -144,3 +144,26 @@ func TestLoadAll_Problems(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadAll_PriorityOrder(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		"http/a/stubs/1-generic.json":  `{"request":{"method":"POST","url":"/login","body":{"user":"bob"}},"response":{"body":"generic"}}`,
+		"http/a/stubs/2-specific.json": `{"priority":10,"request":{"method":"POST","url":"/login","body":{"user":"bob","admin":true}},"response":{"body":"admin"}}`,
+		"http/a/stubs/3-fallback.json": `{"priority":-1,"request":{"method":"POST","url":"/login"},"response":{"body":"fallback"}}`,
+		"http/a/stubs/4-other.json":    `{"request":{"method":"GET","url":"/other"},"response":{}}`,
+	})
+	set, err := LoadAll(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var order []string
+	for _, r := range set.HTTP {
+		order = append(order, filepath.Base(r.FilePath))
+	}
+	// Highest priority first; equal priority (0) keeps file-name order.
+	want := "2-specific.json,1-generic.json,4-other.json,3-fallback.json"
+	if got := strings.Join(order, ","); got != want {
+		t.Errorf("route order = %s, want %s", got, want)
+	}
+}

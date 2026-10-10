@@ -61,6 +61,14 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 			continue
 		}
 
+		if !route.WaitDelay(serverStream.Context()) {
+			return status.FromContextError(serverStream.Context().Err()).Err()
+		}
+		if len(route.Headers) > 0 {
+			if err := serverStream.SetHeader(metadata.New(route.Headers)); err != nil {
+				log.Printf("⚠️ Failed to set gRPC response metadata for %s: %v", fullMethod, err)
+			}
+		}
 		if err := serverStream.SendMsg(route.Message); err != nil {
 			log.Printf("⚠️ Failed to send gRPC response for %s: %v", fullMethod, err)
 			return err

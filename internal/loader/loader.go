@@ -73,7 +73,15 @@ func LoadAll(root string) (*Set, error) {
 			}
 		}
 	}
+	sortByPriority(set.HTTP)
+	sortByPriority(set.GRPC)
 	return set, nil
+}
+
+// sortByPriority orders routes by priority, highest first. The sort is stable, so
+// routes with equal priority keep their load order (mock name, then file name).
+func sortByPriority(routes []models.Route) {
+	sort.SliceStable(routes, func(i, j int) bool { return routes[i].Priority > routes[j].Priority })
 }
 
 // findMocks returns the mock folder names (slash-separated paths relative to kindDir), sorted.

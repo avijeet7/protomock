@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
@@ -193,4 +194,40 @@ func TestGRPC_BodyMatchOnZeroValueField(t *testing.T) {
 	if got != "hi nobody" {
 		t.Errorf("reply = %q, want %q", got, "hi nobody")
 	}
+}
+
+func TestGRPC_ResponseMetadataAndDelay(t *testing.T) {
+	conn := startGreeter(t, map[string]string{
+		"slow.json": `{
+  "request": {"url": "/test.Greeter/Hello"},
+  "response": {"headers": {"X-Trace-Id": "t-1"}, "delay_ms": 100, "body": {"message": "slow"}}
+}`,
+	})
+
+	fd := compileProto(t, "greeter.proto", greeterProto)
+	req := dynamicpb.NewMessage(fd.Messages().ByName("HelloRequest"))
+	reply := dynamicpb.NewMessage(fd.Messages().ByName("HelloReply"))
+
+	t.Run("metadata and delay", func(t *testing.T) {
+		var header metadata.MD
+		start := time.Now()
+		if err := conn.Invoke(context.Background(), "/test.Greeter/Hello", req, reply, grpc.Header(&header)); err != nil {
+			t.Fatal(err)
+		}
+		if elapsed := time.Since(start); elapsed < 100*time.Millisecond {
+			t.Errorf("replied after %v, want at least 100ms", elapsed)
+		}
+		if got := header.Get("x-trace-id"); len(got) != 1 || got[0] != "t-1" {
+			t.Errorf("x-trace-id metadata = %v, want [t-1]", got)
+		}
+	})
+
+	t.Run("client deadline shorter than delay", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+		err := conn.Invoke(ctx, "/test.Greeter/Hello", req, reply)
+		if status.Code(err) != codes.DeadlineExceeded {
+			t.Errorf("code = %v, want DeadlineExceeded", status.Code(err))
+		}
+	})
 }
