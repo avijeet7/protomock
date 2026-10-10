@@ -14,12 +14,12 @@ func TestLoad(t *testing.T) {
 	}{
 		{
 			name: "defaults",
-			want: Config{HTTPAddr: ":8085", GRPCAddr: ":8086", MocksDir: "mocks", WebDir: "internal/web"},
+			want: Config{HTTPAddr: ":8085", GRPCAddr: ":8086", MocksDir: "mocks"},
 		},
 		{
 			name: "environment overrides defaults",
 			env:  map[string]string{"PROTOMOCK_HTTP_ADDR": ":9085", "PROTOMOCK_MOCKS_DIR": "/data/mocks"},
-			want: Config{HTTPAddr: ":9085", GRPCAddr: ":8086", MocksDir: "/data/mocks", WebDir: "internal/web"},
+			want: Config{HTTPAddr: ":9085", GRPCAddr: ":8086", MocksDir: "/data/mocks"},
 		},
 		{
 			name: "flags override environment",

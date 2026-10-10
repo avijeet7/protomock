@@ -12,7 +12,7 @@ type Config struct {
 	HTTPAddr string // HTTP mocks + UI listen address
 	GRPCAddr string // gRPC mocks listen address
 	MocksDir string // root folder containing http/ and grpc/ mocks
-	WebDir   string // folder containing the UI's static/ and templates/
+	WebDir   string // optional: serve UI files from this folder instead of the embedded copy
 }
 
 // Load parses args (without the program name) using getenv for environment lookups;
@@ -32,7 +32,7 @@ func Load(args []string, getenv func(string) string, output io.Writer) (Config, 
 	fs.StringVar(&cfg.HTTPAddr, "http-addr", envOr("PROTOMOCK_HTTP_ADDR", ":8085"), "HTTP mocks and UI listen address (env PROTOMOCK_HTTP_ADDR)")
 	fs.StringVar(&cfg.GRPCAddr, "grpc-addr", envOr("PROTOMOCK_GRPC_ADDR", ":8086"), "gRPC mocks listen address (env PROTOMOCK_GRPC_ADDR)")
 	fs.StringVar(&cfg.MocksDir, "mocks-dir", envOr("PROTOMOCK_MOCKS_DIR", "mocks"), "mocks root folder (env PROTOMOCK_MOCKS_DIR)")
-	fs.StringVar(&cfg.WebDir, "web-dir", envOr("PROTOMOCK_WEB_DIR", "internal/web"), "UI assets folder (env PROTOMOCK_WEB_DIR)")
+	fs.StringVar(&cfg.WebDir, "web-dir", envOr("PROTOMOCK_WEB_DIR", ""), "serve UI files from this folder instead of the built-in copy, e.g. internal/web/ui (env PROTOMOCK_WEB_DIR)")
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err

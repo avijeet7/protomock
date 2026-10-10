@@ -5,7 +5,6 @@ package app
 import (
 	"fmt"
 	"log"
-	"path/filepath"
 	"strings"
 
 	"github.com/avijeet7/protomock/internal/config"
@@ -23,15 +22,10 @@ func Run(cfg config.Config) error {
 	}
 	logSet(set)
 
-	webDir, err := filepath.Abs(cfg.WebDir)
-	if err != nil {
-		return fmt.Errorf("invalid web dir %q: %w", cfg.WebDir, err)
-	}
-
 	errCh := make(chan error, 2)
 
 	// The HTTP server always runs: it also serves the UI, even with no HTTP mocks.
-	uiHandler := web.NewUIHandler(set.HTTP, set.GRPC, webDir)
+	uiHandler := web.NewUIHandler(set.HTTP, set.GRPC, cfg.WebDir)
 	go func() { errCh <- httpserver.StartHTTPServer(cfg.HTTPAddr, set.HTTP, uiHandler) }()
 
 	if len(set.GRPC) > 0 {

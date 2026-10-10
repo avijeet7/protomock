@@ -1,10 +1,12 @@
 package web
 
 import (
+	"embed"
 	"encoding/json"
+	"io/fs"
 	"log"
 	"net/http"
-	"path/filepath"
+	"os"
 	"sort"
 
 	"github.com/avijeet7/protomock/internal/models"
@@ -23,21 +25,28 @@ type httpEndpoint struct {
 	BodyMatch   json.RawMessage `json:"body_match,omitempty"`
 }
 
-func NewUIHandler(httpRoutes []models.Route, grpcRoutes []models.Route, webDir string) http.Handler {
+// assets are the UI files compiled into the binary.
+//
+//go:embed ui
+var assets embed.FS
+
+// NewUIHandler serves the UI under /protomock-ui. If assetsDir is set, UI files are read
+// from that folder instead of the embedded copy (handy while developing the UI).
+func NewUIHandler(httpRoutes []models.Route, grpcRoutes []models.Route, assetsDir string) http.Handler {
+	var files fs.FS
+	if assetsDir != "" {
+		files = os.DirFS(assetsDir)
+	} else {
+		files, _ = fs.Sub(assets, "ui")
+	}
+
 	mux := http.NewServeMux()
-
-	// Serve static files
-	staticDir := filepath.Join(webDir, "static")
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
-
-	// Serve the index.html file
-	indexFile := filepath.Join(webDir, "templates", "index.html")
-	mux.HandleFunc("/protomock-ui", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, indexFile)
+	mux.HandleFunc("GET /protomock-ui", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, files, "index.html")
 	})
+	mux.Handle("GET /protomock-ui/", http.StripPrefix("/protomock-ui/", http.FileServerFS(files)))
 
-	// API endpoint to get the endpoint data
-	mux.HandleFunc("/api/endpoints", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /protomock-ui/api/endpoints", func(w http.ResponseWriter, r *http.Request) {
 		data := getEndpointData(httpRoutes, grpcRoutes)
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(data); err != nil {

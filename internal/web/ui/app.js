@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function () {
-    fetch('/api/endpoints')
+    fetch('/protomock-ui/api/endpoints')
         .then(response => response.json())
         .then(data => {
             const httpEndpoints = document.getElementById('http-endpoints');

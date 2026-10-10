@@ -49,14 +49,14 @@ func NewRouter(routes []models.Route, uiHandler http.Handler) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.Handle("/protomock-ui", uiHandler)
-	mux.Handle("/static/", uiHandler)
-	mux.Handle("/api/endpoints", uiHandler)
+	mux.Handle("/protomock-ui/", uiHandler)
 	mux.HandleFunc("/", makeMockHandler(urlToRoutes, regexRoutes))
 	return mux
 }
 
+// isUIPath reports whether path belongs to the UI (/protomock-ui and everything under it).
 func isUIPath(path string) bool {
-	return path == "/protomock-ui" || path == "/api/endpoints" || strings.HasPrefix(path, "/static/")
+	return path == "/protomock-ui" || strings.HasPrefix(path, "/protomock-ui/")
 }
 
 // partitionRoutes splits routes into exact-URL groups and regex routes.
