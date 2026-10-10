@@ -1,7 +1,9 @@
 package httpserver
 
 import (
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -9,10 +11,15 @@ import (
 	"github.com/avijeet7/protomock/internal/models"
 )
 
-func StartHTTPServer(routes []models.Route, uiHandler http.Handler) {
-	mux := NewRouter(routes, uiHandler)
-	log.Println("[HTTP] Server started on :8085")
-	http.ListenAndServe(":8085", mux)
+// StartHTTPServer serves mocks and the UI on addr (e.g. ":8085").
+// It blocks until the server stops and returns why, e.g. the port is in use.
+func StartHTTPServer(addr string, routes []models.Route, uiHandler http.Handler) error {
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("HTTP server: %w", err)
+	}
+	log.Printf("[HTTP] Server started on %s", lis.Addr())
+	return http.Serve(lis, NewRouter(routes, uiHandler))
 }
 
 // NewRouter builds the HTTP handler for all mock routes plus the web UI.

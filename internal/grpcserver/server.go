@@ -1,6 +1,7 @@
 package grpcserver
 
 import (
+	"fmt"
 	"log"
 	"net"
 
@@ -9,18 +10,16 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-func StartGRPCServer(routes []models.Route) {
-	listener, err := net.Listen("tcp", ":8086")
+// StartGRPCServer serves gRPC mocks on addr (e.g. ":8086").
+// It blocks until the server stops and returns why, e.g. the port is in use.
+func StartGRPCServer(addr string, routes []models.Route) error {
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatalf("❌ Failed to listen on gRPC port: %v", err)
+		return fmt.Errorf("gRPC server: %w", err)
 	}
 
-	server := NewGRPCServer(routes)
-
-	log.Println("🚀 gRPC server started on :8086")
-	if err := server.Serve(listener); err != nil {
-		log.Fatalf("❌ Failed to serve gRPC server: %v", err)
-	}
+	log.Printf("🚀 gRPC server started on %s", listener.Addr())
+	return NewGRPCServer(routes).Serve(listener)
 }
 
 // NewGRPCServer builds a gRPC server that answers every method from the given stubs.
