@@ -1,12 +1,11 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 
+	"github.com/avijeet7/protomock/internal/match"
 	"github.com/avijeet7/protomock/internal/models"
 )
 
@@ -19,20 +18,10 @@ func isRegexURL(url string) bool {
 }
 
 func matchPath(r *http.Request, route models.Route) bool {
-	// Strip query params before matching
-	path := strings.Split(r.URL.Path, "?")[0]
-
-	if isRegexURL(route.URL) {
-		regex := "^" + route.URL + "$"
-		re, err := regexp.Compile(regex)
-		if err != nil {
-			// If the route URL is not a valid regex, perform exact match
-			return path == route.URL
-		}
-		return re.MatchString(path)
+	if route.PathRegex != nil {
+		return route.PathRegex.MatchString(r.URL.Path)
 	}
-
-	return path == route.URL
+	return r.URL.Path == route.URL
 }
 
 func matchHeaders(r *http.Request, route models.Route) bool {
@@ -44,26 +33,23 @@ func matchHeaders(r *http.Request, route models.Route) bool {
 	return true
 }
 
-func matchBody(r *http.Request, route models.Route) bool {
+// readBody reads the request body once so every candidate stub can be
+// matched against the same bytes (r.Body is a stream and can only be read once).
+func readBody(r *http.Request) []byte {
+	if r.Body == nil {
+		return nil
+	}
+	// No Close needed: the HTTP server closes request bodies itself.
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil
+	}
+	return body
+}
+
+func matchBody(reqBody []byte, route models.Route) bool {
 	if len(route.BodyMatch) == 0 {
 		return true
 	}
-
-	reqBody, err := io.ReadAll(r.Body)
-	if err != nil {
-		return false
-	}
-	defer r.Body.Close()
-
-	var expectedBody, actualBody map[string]interface{}
-	_ = json.Unmarshal(route.BodyMatch, &expectedBody)
-	_ = json.Unmarshal(reqBody, &actualBody)
-
-	return deepEqual(expectedBody, actualBody)
-}
-
-func deepEqual(a, b map[string]interface{}) bool {
-	aj, _ := json.Marshal(a)
-	bj, _ := json.Marshal(b)
-	return string(aj) == string(bj)
+	return match.PartialJSON(route.BodyMatch, reqBody)
 }

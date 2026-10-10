@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -39,7 +40,9 @@ func NewUIHandler(httpRoutes []models.Route, grpcRoutes []models.Route, webDir s
 	mux.HandleFunc("/api/endpoints", func(w http.ResponseWriter, r *http.Request) {
 		data := getEndpointData(httpRoutes, grpcRoutes)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(data)
+		if err := json.NewEncoder(w).Encode(data); err != nil {
+			log.Printf("[UI] Failed to write endpoint data: %v", err)
+		}
 	})
 
 	return mux

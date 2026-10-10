@@ -3,10 +3,14 @@ package grpcserver
 import (
 	"log"
 
+	"github.com/avijeet7/protomock/internal/match"
 	"github.com/avijeet7/protomock/internal/models"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/jhump/protoreflect/dynamic"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 type mockService struct {
@@ -17,46 +21,36 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 	fullMethod, ok := grpc.MethodFromServerStream(serverStream)
 	if !ok {
 		log.Println("❌ Unable to determine method from gRPC stream")
-		return nil
+		return status.Error(codes.Internal, "protomock: unable to determine method from gRPC stream")
 	}
 
 	candidates, found := m.routes[fullMethod]
 	if !found {
 		log.Printf("❌ No gRPC mock candidates for %s", fullMethod)
-		return nil
+		return status.Errorf(codes.Unimplemented, "protomock: no stubs configured for %s", fullMethod)
 	}
 
+	// The request can only be received once, so read it before trying candidates.
+	reqMsg, err := receiveRequest(serverStream, candidates)
+	if err != nil {
+		log.Printf("❌ Failed to receive gRPC request body for %s: %v", fullMethod, err)
+		return status.Errorf(codes.Internal, "protomock: failed to read request for %s: %v", fullMethod, err)
+	}
+	md, _ := metadata.FromIncomingContext(serverStream.Context())
+
 	for _, route := range candidates {
-		// ✅ Header matching (only if headers specified)
-		if len(route.HeaderMatch) > 0 {
-			md, ok := metadata.FromIncomingContext(serverStream.Context())
-			if !ok {
-				log.Printf("❌ Failed to extract metadata for %s", fullMethod)
-				continue
-			}
-			matched := true
-			for key, expected := range route.HeaderMatch {
-				values := md.Get(key)
-				if len(values) == 0 || values[0] != expected {
-					matched = false
-					break
-				}
-			}
-			if !matched {
-				continue
-			}
+		if !headersMatch(route.HeaderMatch, md) {
+			continue
 		}
 
 		// ✅ Body matching (only if specified)
 		if len(route.BodyMatch) > 0 {
-			reqMsg := dynamic.NewMessage(route.MessageDesc)
-			if err := serverStream.RecvMsg(reqMsg); err != nil {
-				log.Printf("❌ Failed to receive gRPC request body for %s: %v", fullMethod, err)
+			if reqMsg == nil {
+				log.Printf("❌ Cannot match body for %s: method not found in the stub's proto service definitions", fullMethod)
 				continue
 			}
-			actualBody, _ := reqMsg.MarshalJSON()
-			if !partialJSONMatch(route.BodyMatch, actualBody) {
-				log.Printf("❌ Body mismatch for %s", fullMethod)
+			if !bodyMatches(route.BodyMatch, reqMsg) {
+				log.Printf("❌ Body mismatch for %s (%s)", fullMethod, route.FilePath)
 				continue
 			}
 		}
@@ -69,12 +63,51 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 
 		if err := serverStream.SendMsg(route.Message); err != nil {
 			log.Printf("⚠️ Failed to send gRPC response for %s: %v", fullMethod, err)
-		} else {
-			log.Printf("✅ Served gRPC mock for %s", fullMethod)
+			return err
 		}
+		log.Printf("✅ Served gRPC mock for %s", fullMethod)
 		return nil
 	}
 
 	log.Printf("❌ No gRPC stub matched for %s", fullMethod)
-	return nil
+	return status.Errorf(codes.NotFound, "protomock: none of the %d stubs for %s matched the request headers/body", len(candidates), fullMethod)
+}
+
+// receiveRequest reads the single request message, decoded with the method's
+// input type. All candidates share a method, so any known RequestDesc works.
+// It returns a nil message if the input type is unknown.
+func receiveRequest(stream grpc.ServerStream, candidates []models.Route) (*dynamic.Message, error) {
+	for _, route := range candidates {
+		if route.RequestDesc != nil {
+			reqMsg := dynamic.NewMessage(route.RequestDesc)
+			if err := stream.RecvMsg(reqMsg); err != nil {
+				return nil, err
+			}
+			return reqMsg, nil
+		}
+	}
+	return nil, nil
+}
+
+// headersMatch reports whether every expected header is present in the
+// request metadata with the expected (first) value.
+func headersMatch(expected map[string]string, md metadata.MD) bool {
+	for key, want := range expected {
+		values := md.Get(key)
+		if len(values) == 0 || values[0] != want {
+			return false
+		}
+	}
+	return true
+}
+
+// bodyMatches checks the stub's body against the request rendered as JSON.
+// Stubs may use either the .proto field names (user_id) or proto3 JSON
+// camelCase names (userId), so both renderings are tried.
+func bodyMatches(expected []byte, reqMsg *dynamic.Message) bool {
+	if protoNames, err := reqMsg.MarshalJSONPB(&jsonpb.Marshaler{OrigName: true}); err == nil && match.PartialJSON(expected, protoNames) {
+		return true
+	}
+	camelNames, err := reqMsg.MarshalJSON()
+	return err == nil && match.PartialJSON(expected, camelNames)
 }

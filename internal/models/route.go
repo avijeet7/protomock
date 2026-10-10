@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"regexp"
 
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
@@ -14,9 +15,11 @@ type Route struct {
 	HeaderMatch  map[string]string
 	BodyMatch    json.RawMessage
 	Status       int
-	MessageDesc  *desc.MessageDescriptor
-	Message      *dynamic.Message // response message
+	MessageDesc  *desc.MessageDescriptor // response message type
+	RequestDesc  *desc.MessageDescriptor // gRPC request message type, from the service definition (nil for HTTP)
+	Message      *dynamic.Message        // response message
 	ProtoEncoded bool
 	RawJSONBody  []byte
-	FilePath     string // Path to the stub file
+	FilePath     string         // Path to the stub file
+	PathRegex    *regexp.Regexp // Compiled URL pattern for regex routes (nil for exact routes)
 }

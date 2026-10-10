@@ -26,6 +26,23 @@ func findMessage(fds []*desc.FileDescriptor, msgName string) *desc.MessageDescri
 	return nil
 }
 
+// findMethodInput returns the request message type for a gRPC path like
+// "/pkg.Service/Method", or nil if the path doesn't name a method in the proto.
+func findMethodInput(fds []*desc.FileDescriptor, url string) *desc.MessageDescriptor {
+	service, method, ok := strings.Cut(strings.TrimPrefix(url, "/"), "/")
+	if !ok {
+		return nil
+	}
+	for _, fd := range fds {
+		if sd := fd.FindService(service); sd != nil {
+			if md := sd.FindMethodByName(method); md != nil {
+				return md.GetInputType()
+			}
+		}
+	}
+	return nil
+}
+
 func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 	var routes []models.Route
 
@@ -99,6 +116,7 @@ func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 			Status:       s.Response.Status,
 			Message:      msg,
 			MessageDesc:  msgDesc,
+			RequestDesc:  findMethodInput(fds, s.Request.URL),
 			ProtoEncoded: s.Response.Proto,
 			RawJSONBody:  rawJSONBody,
 			FilePath:     stubPath,
