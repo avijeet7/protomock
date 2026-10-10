@@ -17,7 +17,9 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 const greeterProto = `syntax = "proto3";
@@ -88,8 +90,14 @@ func startGreeter(t *testing.T, stubs map[string]string) *grpc.ClientConn {
 	return conn
 }
 
-// callHello sends HelloRequest{user_id} and returns the reply's message field.
+// callHello sends HelloRequest{user_id} to Greeter/Hello and returns the reply's message field.
 func callHello(t *testing.T, conn *grpc.ClientConn, userID string) (string, error) {
+	t.Helper()
+	return callGreeter(t, conn, "/test.Greeter/Hello", userID)
+}
+
+// callGreeter sends HelloRequest{user_id} to any method and returns the reply's message field.
+func callGreeter(t *testing.T, conn *grpc.ClientConn, method, userID string) (string, error) {
 	t.Helper()
 
 	fds, err := (&protoparse.Parser{Accessor: protoparse.FileContentsFromMap(map[string]string{
@@ -106,7 +114,7 @@ func callHello(t *testing.T, conn *grpc.ClientConn, userID string) (string, erro
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := conn.Invoke(ctx, "/test.Greeter/Hello", req, reply); err != nil {
+	if err := conn.Invoke(ctx, method, req, reply); err != nil {
 		return "", err
 	}
 	return reply.GetFieldByName("message").(string), nil
@@ -137,5 +145,50 @@ func TestGRPC_BodyMatchAcceptsCamelCaseFieldNames(t *testing.T) {
 	}
 	if got != "hi camel bob" {
 		t.Errorf("reply = %q, want %q", got, "hi camel bob")
+	}
+}
+
+func TestGRPC_BodyMatchOnLaterStub(t *testing.T) {
+	// Stub files load in name order, so alice.json is tried before bob.json.
+	conn := startGreeter(t, map[string]string{
+		"alice.json": greeterStub("alice", "hi alice"),
+		"bob.json":   greeterStub("bob", "hi bob"),
+	})
+
+	for _, user := range []string{"alice", "bob"} {
+		t.Run(user, func(t *testing.T) {
+			got, err := callHello(t, conn, user)
+			if err != nil {
+				t.Fatalf("Hello(user_id=%s) error: %v", user, err)
+			}
+			if want := "hi " + user; got != want {
+				t.Errorf("reply = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestGRPC_UnmatchedCallsReturnStatusErrors(t *testing.T) {
+	conn := startGreeter(t, map[string]string{
+		"alice.json": greeterStub("alice", "hi alice"),
+	})
+
+	tests := []struct {
+		name     string
+		method   string
+		userID   string
+		wantCode codes.Code
+	}{
+		{"no stub for method", "/test.Greeter/Goodbye", "alice", codes.Unimplemented},
+		{"stubs exist but none match", "/test.Greeter/Hello", "carol", codes.NotFound},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := callGreeter(t, conn, tt.method, tt.userID)
+			if got := status.Code(err); got != tt.wantCode {
+				t.Errorf("status code = %v, want %v (err: %v)", got, tt.wantCode, err)
+			}
+		})
 	}
 }
