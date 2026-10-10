@@ -1,19 +1,37 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ProtoMock Endpoints</title>
-    <link rel="stylesheet" href="/protomock-ui/style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProtoMock</title>
+  <link rel="stylesheet" href="/protomock-ui/style.css">
 </head>
 <body>
-<div class="container">
-    <h1>ProtoMock Endpoints Overview</h1>
+<header class="topbar">
+  <div class="brand">🧪 ProtoMock</div>
+  <div class="topbar-info" id="mocks-dir"></div>
+  <div class="topbar-actions">
+    <span class="badge badge-warn hidden" id="readonly-badge" title="The mocks folder is not writable (e.g. mounted read-only). Editing is disabled.">read-only</span>
+    <button class="btn btn-ghost hidden" id="problems-btn" title="Stubs and protos that failed to load"></button>
+    <button class="btn btn-ghost" id="reload-btn" title="Re-read the mocks folder from disk">⟳ Reload</button>
+    <button class="btn btn-ghost" id="help-btn" title="How ProtoMock works">? Guide</button>
+  </div>
+</header>
 
-    <h2>HTTP Endpoints</h2>
-    <ul id="http-endpoints"></ul>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <input type="search" id="search" placeholder="Search URL, method, file…" autocomplete="off">
+      <button class="btn btn-primary btn-block" id="new-mock-btn">+ New mock</button>
+    </div>
+    <nav id="tree" class="tree" aria-label="Mocks"></nav>
+  </aside>
 
-    <h2>gRPC Endpoints</h2>
-    <ul id="grpc-endpoints"></ul>
+  <main id="main" class="main"></main>
 </div>
+
+<div id="modal-root"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
 
 <script src="/protomock-ui/app.js"></script>
 </body>

@@ -39,10 +39,18 @@ func NewUIHandler(backend Backend, assetsDir string) http.Handler {
 	api := &api{backend: backend, store: &store.Store{Root: backend.MocksDir()}}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /protomock-ui", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /protomock-ui", noCache(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFileFS(w, r, files, "index.html")
-	})
-	mux.Handle("GET /protomock-ui/", http.StripPrefix("/protomock-ui/", http.FileServerFS(files)))
+	})))
+	mux.Handle("GET /protomock-ui/", noCache(http.StripPrefix("/protomock-ui/", http.FileServerFS(files))))
 	api.register(mux, "/protomock-ui/api")
 	return mux
+}
+
+// noCache makes browsers revalidate UI files, so a ProtoMock upgrade never runs a stale UI.
+func noCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		next.ServeHTTP(w, r)
+	})
 }
