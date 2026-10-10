@@ -1,7 +1,10 @@
 package grpcserver
 
 import (
+	"fmt"
 	"log"
+	"sort"
+	"strings"
 	"sync/atomic"
 
 	"github.com/avijeet7/protomock/internal/match"
@@ -25,10 +28,12 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 		return status.Error(codes.Internal, "protomock: unable to determine method from gRPC stream")
 	}
 
-	candidates, found := (*m.routes.Load())[fullMethod]
+	routes := *m.routes.Load()
+	candidates, found := routes[fullMethod]
 	if !found {
-		log.Printf("❌ No gRPC mock candidates for %s", fullMethod)
-		return status.Errorf(codes.Unimplemented, "protomock: no stubs configured for %s", fullMethod)
+		msg := unimplementedMessage(fullMethod, routes)
+		log.Printf("[gRPC] ❌ %s", msg)
+		return status.Error(codes.Unimplemented, msg)
 	}
 
 	// The request can only be received once, so read it before trying candidates.
@@ -39,26 +44,10 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 	}
 	md, _ := metadata.FromIncomingContext(serverStream.Context())
 
+	var misses []nearMiss
 	for _, route := range candidates {
-		if !headersMatch(route.HeaderMatch, md) {
-			continue
-		}
-
-		// ✅ Body matching (only if specified)
-		if len(route.BodyMatch) > 0 {
-			if reqMsg == nil {
-				log.Printf("❌ Cannot match body for %s: method not found in the stub's proto service definitions", fullMethod)
-				continue
-			}
-			if !bodyMatches(route.BodyMatch, reqMsg) {
-				log.Printf("❌ Body mismatch for %s (%s)", fullMethod, route.FilePath)
-				continue
-			}
-		}
-
-		// ✅ Send response
-		if !route.ProtoEncoded {
-			log.Printf("⚠️ Stub for %s is not marked as proto; skipping response", fullMethod)
+		if reasons := mismatches(route, md, reqMsg); len(reasons) > 0 {
+			misses = append(misses, nearMiss{stub: route.Name(), reasons: reasons})
 			continue
 		}
 
@@ -74,12 +63,68 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 			log.Printf("⚠️ Failed to send gRPC response for %s: %v", fullMethod, err)
 			return err
 		}
-		log.Printf("✅ Served gRPC mock for %s", fullMethod)
+		log.Printf("[gRPC] ✅ Serving %s for %s", route.Name(), fullMethod)
 		return nil
 	}
 
-	log.Printf("❌ No gRPC stub matched for %s", fullMethod)
-	return status.Errorf(codes.NotFound, "protomock: none of the %d stubs for %s matched the request headers/body", len(candidates), fullMethod)
+	msg := notFoundMessage(fullMethod, misses)
+	log.Printf("[gRPC] ❌ %s", msg)
+	return status.Error(codes.NotFound, msg)
+}
+
+// nearMiss is a stub for the called method and the rules the request failed.
+type nearMiss struct {
+	stub    string
+	reasons []string
+}
+
+// mismatches lists the rules of route that the request fails (empty = it matches).
+func mismatches(route models.Route, md metadata.MD, reqMsg *dynamicpb.Message) []string {
+	reasons := metadataMismatches(route.HeaderMatch, md)
+	if len(route.BodyMatch) == 0 {
+		return reasons
+	}
+	switch {
+	case reqMsg == nil:
+		reasons = append(reasons, "body: the method isn't in the mock's .proto files, so the body can't be matched")
+	case !bodyMatches(route.BodyMatch, reqMsg):
+		actual, _ := protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}.Marshal(reqMsg)
+		reasons = append(reasons, match.ExplainJSON(route.BodyMatch, actual)...)
+	}
+	return reasons
+}
+
+// notFoundMessage explains the closest stub, e.g. `no stub matched /pkg.S/M (2 stubs). Closest
+// grpc/s/stubs/a.json: metadata x-tenant: expected "acme", got "other"`.
+func notFoundMessage(fullMethod string, misses []nearMiss) string {
+	sort.SliceStable(misses, func(i, j int) bool { return len(misses[i].reasons) < len(misses[j].reasons) })
+	noun := "stubs"
+	if len(misses) == 1 {
+		noun = "stub"
+	}
+	msg := fmt.Sprintf("protomock: no stub matched %s (%d %s)", fullMethod, len(misses), noun)
+	if len(misses) > 0 {
+		msg += fmt.Sprintf(". Closest %s: %s", misses[0].stub, strings.Join(misses[0].reasons, "; "))
+	}
+	return msg
+}
+
+// unimplementedMessage lists the mocked methods, so a typo in the service or method name is obvious.
+func unimplementedMessage(fullMethod string, routes map[string][]models.Route) string {
+	if len(routes) == 0 {
+		return fmt.Sprintf("protomock: no stubs for %s (no gRPC mocks are loaded)", fullMethod)
+	}
+	methods := make([]string, 0, len(routes))
+	for m := range routes {
+		methods = append(methods, m)
+	}
+	sort.Strings(methods)
+	more := ""
+	if len(methods) > 10 {
+		more = fmt.Sprintf(" and %d more", len(methods)-10)
+		methods = methods[:10]
+	}
+	return fmt.Sprintf("protomock: no stubs for %s. Mocked methods: %s%s", fullMethod, strings.Join(methods, ", "), more)
 }
 
 // receiveRequest reads the single request message, decoded with the method's
@@ -101,13 +146,27 @@ func receiveRequest(stream grpc.ServerStream, candidates []models.Route) (*dynam
 // headersMatch reports whether every expected header is present in the
 // request metadata with the expected (first) value.
 func headersMatch(expected map[string]string, md metadata.MD) bool {
-	for key, want := range expected {
-		values := md.Get(key)
-		if len(values) == 0 || values[0] != want {
-			return false
+	return len(metadataMismatches(expected, md)) == 0
+}
+
+// metadataMismatches explains which expected metadata entries are missing or different.
+func metadataMismatches(expected map[string]string, md metadata.MD) []string {
+	keys := make([]string, 0, len(expected))
+	for k := range expected {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var reasons []string
+	for _, key := range keys {
+		want, values := expected[key], md.Get(key)
+		switch {
+		case len(values) == 0:
+			reasons = append(reasons, fmt.Sprintf("metadata %s: missing (expected %q)", strings.ToLower(key), want))
+		case values[0] != want:
+			reasons = append(reasons, fmt.Sprintf("metadata %s: expected %q, got %q", strings.ToLower(key), want, values[0]))
 		}
 	}
-	return true
+	return reasons
 }
 
 // bodyMatches checks the stub's body against the request rendered as JSON.

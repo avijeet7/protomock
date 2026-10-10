@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"regexp"
 	"time"
 
@@ -44,4 +45,16 @@ func (r Route) WaitDelay(ctx context.Context) bool {
 	case <-ctx.Done():
 		return false
 	}
+}
+
+// Name identifies the route's stub for logs and error messages, e.g. "users/stubs/list.json".
+func (r Route) Name() string {
+	file := filepath.Base(r.FilePath)
+	if r.FilePath == "" {
+		file = "(unnamed stub)"
+	}
+	if r.Mock == "" {
+		return file
+	}
+	return r.Mock + "/stubs/" + file
 }

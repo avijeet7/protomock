@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -228,6 +229,34 @@ func TestGRPC_ResponseMetadataAndDelay(t *testing.T) {
 		err := conn.Invoke(ctx, "/test.Greeter/Hello", req, reply)
 		if status.Code(err) != codes.DeadlineExceeded {
 			t.Errorf("code = %v, want DeadlineExceeded", status.Code(err))
+		}
+	})
+}
+
+func TestGRPC_NoMatchMessagesExplainWhy(t *testing.T) {
+	conn := startGreeter(t, map[string]string{
+		"alice.json": `{"request":{"url":"/test.Greeter/Hello","headers":{"x-tenant":"acme"},"body":{"user_id":"alice"}},"response":{"body":{"message":"hi"}}}`,
+	})
+
+	t.Run("closest stub and failed rules", func(t *testing.T) {
+		_, err := callHello(t, conn, "carol")
+		msg := status.Convert(err).Message()
+		for _, want := range []string{
+			"no stub matched /test.Greeter/Hello (1 stub)",
+			"greeter/stubs/alice.json",
+			`metadata x-tenant: missing (expected "acme")`,
+			`body.user_id: expected "alice", got "carol"`,
+		} {
+			if !strings.Contains(msg, want) {
+				t.Errorf("message %q should contain %q", msg, want)
+			}
+		}
+	})
+
+	t.Run("unknown method lists mocked methods", func(t *testing.T) {
+		_, err := callGreeter(t, conn, "/test.Greeter/Helo", "x")
+		if msg := status.Convert(err).Message(); !strings.Contains(msg, "Mocked methods: /test.Greeter/Hello") {
+			t.Errorf("message = %q, want it to list /test.Greeter/Hello", msg)
 		}
 	})
 }
