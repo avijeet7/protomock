@@ -20,7 +20,9 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := app.Run(cfg); err != nil {
+	a, err := app.New(cfg)
+	if err != nil {
 		log.Fatalf("❌ %v", err)
 	}
+	log.Fatalf("❌ %v", a.Run())
 }

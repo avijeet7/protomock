@@ -4,7 +4,9 @@ package config
 
 import (
 	"flag"
+	"fmt"
 	"io"
+	"time"
 )
 
 // Config holds the server settings.
@@ -13,6 +15,8 @@ type Config struct {
 	GRPCAddr string // gRPC mocks listen address
 	MocksDir string // root folder containing http/ and grpc/ mocks
 	WebDir   string // optional: serve UI files from this folder instead of the embedded copy
+
+	ReloadInterval time.Duration // how often to check the mocks folder for changes (0 = never)
 }
 
 // Load parses args (without the program name) using getenv for environment lookups;
@@ -33,6 +37,12 @@ func Load(args []string, getenv func(string) string, output io.Writer) (Config, 
 	fs.StringVar(&cfg.GRPCAddr, "grpc-addr", envOr("PROTOMOCK_GRPC_ADDR", ":8086"), "gRPC mocks listen address (env PROTOMOCK_GRPC_ADDR)")
 	fs.StringVar(&cfg.MocksDir, "mocks-dir", envOr("PROTOMOCK_MOCKS_DIR", "mocks"), "mocks root folder (env PROTOMOCK_MOCKS_DIR)")
 	fs.StringVar(&cfg.WebDir, "web-dir", envOr("PROTOMOCK_WEB_DIR", ""), "serve UI files from this folder instead of the built-in copy, e.g. internal/web/ui (env PROTOMOCK_WEB_DIR)")
+
+	reload, err := time.ParseDuration(envOr("PROTOMOCK_RELOAD_INTERVAL", "2s"))
+	if err != nil {
+		return Config{}, fmt.Errorf("PROTOMOCK_RELOAD_INTERVAL: %w", err)
+	}
+	fs.DurationVar(&cfg.ReloadInterval, "reload-interval", reload, "how often to check the mocks folder for changes and hot-reload; 0 disables (env PROTOMOCK_RELOAD_INTERVAL)")
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err

@@ -71,7 +71,7 @@ func startGreeter(t *testing.T, stubs map[string]string) *grpc.ClientConn {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := grpcserver.NewGRPCServer(routes)
+	server := grpcserver.NewServer(routes)
 	go func() { _ = server.Serve(lis) }()
 	t.Cleanup(server.Stop)
 

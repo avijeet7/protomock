@@ -28,9 +28,9 @@ type reflectionSnapshot struct {
 	services map[string]grpc.ServiceInfo
 }
 
-func registerReflection(server *grpc.Server, routes []models.Route) *reflectionSource {
+func registerReflection(server *grpc.Server) *reflectionSource {
 	src := &reflectionSource{server: server}
-	src.update(routes)
+	src.update(nil)
 
 	opts := reflection.ServerOptions{Services: src, DescriptorResolver: src}
 	reflectionv1.RegisterServerReflectionServer(server, reflection.NewServerV1(opts))

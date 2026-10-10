@@ -2,6 +2,7 @@ package grpcserver
 
 import (
 	"log"
+	"sync/atomic"
 
 	"github.com/avijeet7/protomock/internal/match"
 	"github.com/avijeet7/protomock/internal/models"
@@ -14,7 +15,7 @@ import (
 )
 
 type mockService struct {
-	routes map[string][]models.Route
+	routes atomic.Pointer[map[string][]models.Route] // gRPC full method -> candidate stubs
 }
 
 func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) error {
@@ -24,7 +25,7 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 		return status.Error(codes.Internal, "protomock: unable to determine method from gRPC stream")
 	}
 
-	candidates, found := m.routes[fullMethod]
+	candidates, found := (*m.routes.Load())[fullMethod]
 	if !found {
 		log.Printf("❌ No gRPC mock candidates for %s", fullMethod)
 		return status.Errorf(codes.Unimplemented, "protomock: no stubs configured for %s", fullMethod)

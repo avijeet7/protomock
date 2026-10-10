@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 
+	"github.com/avijeet7/protomock/internal/loader"
 	"github.com/avijeet7/protomock/internal/models"
 )
 
@@ -32,7 +33,12 @@ var assets embed.FS
 
 // NewUIHandler serves the UI under /protomock-ui. If assetsDir is set, UI files are read
 // from that folder instead of the embedded copy (handy while developing the UI).
-func NewUIHandler(httpRoutes []models.Route, grpcRoutes []models.Route, assetsDir string) http.Handler {
+// Backend is what the UI needs from the running app.
+type Backend interface {
+	Set() *loader.Set // currently loaded mocks
+}
+
+func NewUIHandler(backend Backend, assetsDir string) http.Handler {
 	var files fs.FS
 	if assetsDir != "" {
 		files = os.DirFS(assetsDir)
@@ -47,7 +53,8 @@ func NewUIHandler(httpRoutes []models.Route, grpcRoutes []models.Route, assetsDi
 	mux.Handle("GET /protomock-ui/", http.StripPrefix("/protomock-ui/", http.FileServerFS(files)))
 
 	mux.HandleFunc("GET /protomock-ui/api/endpoints", func(w http.ResponseWriter, r *http.Request) {
-		data := getEndpointData(httpRoutes, grpcRoutes)
+		set := backend.Set()
+		data := getEndpointData(set.HTTP, set.GRPC)
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(data); err != nil {
 			log.Printf("[UI] Failed to write endpoint data: %v", err)
