@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"regexp"
 
-	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/dynamic"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 // Route represents a fully loaded mock route after parsing proto + stub
@@ -15,9 +15,9 @@ type Route struct {
 	HeaderMatch  map[string]string
 	BodyMatch    json.RawMessage
 	Status       int
-	MessageDesc  *desc.MessageDescriptor // response message type
-	RequestDesc  *desc.MessageDescriptor // gRPC request message type, from the service definition (nil for HTTP)
-	Message      *dynamic.Message        // response message
+	MessageDesc  protoreflect.MessageDescriptor // response message type
+	RequestDesc  protoreflect.MessageDescriptor // gRPC request message type, from the service definition (nil for HTTP)
+	Message      *dynamicpb.Message             // response message
 	ProtoEncoded bool
 	RawJSONBody  []byte
 	FilePath     string         // Path to the stub file

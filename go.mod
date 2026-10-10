@@ -4,8 +4,6 @@ go 1.24.5
 
 require (
 	github.com/bufbuild/protocompile v0.14.1
-	github.com/golang/protobuf v1.5.4
-	github.com/jhump/protoreflect v1.17.0
 	google.golang.org/grpc v1.74.2
 	google.golang.org/protobuf v1.36.6
 )

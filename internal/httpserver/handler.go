@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/avijeet7/protomock/internal/models"
+	"google.golang.org/protobuf/proto"
 )
 
 // makeGroupedHandler returns an HTTP handler for all stubs under the same URL.
@@ -58,7 +59,7 @@ func writeResponse(w http.ResponseWriter, route models.Route) {
 	body := route.RawJSONBody
 
 	if route.ProtoEncoded {
-		data, err := route.Message.Marshal()
+		data, err := proto.Marshal(route.Message)
 		if err != nil {
 			http.Error(w, "Failed to marshal Protobuf", http.StatusInternalServerError)
 			return

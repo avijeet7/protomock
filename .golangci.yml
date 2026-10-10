@@ -9,14 +9,6 @@ run:
 linters:
   default: standard # errcheck, govet, ineffassign, staticcheck, unused
 
-  exclusions:
-    rules:
-      # TODO: migrate from the deprecated protobuf v1 libraries (jhump/protoreflect v1,
-      # golang/protobuf) to bufbuild/protocompile + google.golang.org/protobuf dynamicpb.
-      # Until then, silence only these two packages' deprecation warnings.
-      - linters: [staticcheck]
-        text: 'SA1019: "github.com/(jhump/protoreflect|golang/protobuf)/'
-
 formatters:
   enable:
     - gofmt

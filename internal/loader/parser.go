@@ -1,6 +1,7 @@
 package loader
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -8,48 +9,73 @@ import (
 	"strings"
 
 	"github.com/avijeet7/protomock/internal/models"
-	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/desc/protoparse"
-	"github.com/jhump/protoreflect/dynamic"
+	"github.com/bufbuild/protocompile"
+	"github.com/bufbuild/protocompile/linker"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 func isProtoFile(name string) bool {
 	return strings.HasSuffix(name, ".proto")
 }
 
-func findMessage(fds []*desc.FileDescriptor, msgName string) *desc.MessageDescriptor {
-	for _, fd := range fds {
-		if msg := fd.FindMessage(msgName); msg != nil {
-			return msg
-		}
+// compileProto compiles a .proto file; imports resolve relative to its folder,
+// and well-known types (google/protobuf/*.proto) are built in.
+func compileProto(protoPath string) (linker.Files, error) {
+	compiler := protocompile.Compiler{
+		Resolver: protocompile.WithStandardImports(&protocompile.SourceResolver{
+			ImportPaths: []string{filepath.Dir(protoPath)},
+		}),
 	}
-	return nil
+	return compiler.Compile(context.Background(), filepath.Base(protoPath))
+}
+
+func findMessage(files linker.Files, msgName string) protoreflect.MessageDescriptor {
+	d, err := files.AsResolver().FindDescriptorByName(protoreflect.FullName(msgName))
+	if err != nil {
+		return nil
+	}
+	md, _ := d.(protoreflect.MessageDescriptor)
+	return md
 }
 
 // findMethodInput returns the request message type for a gRPC path like
 // "/pkg.Service/Method", or nil if the path doesn't name a method in the proto.
-func findMethodInput(fds []*desc.FileDescriptor, url string) *desc.MessageDescriptor {
+func findMethodInput(files linker.Files, url string) protoreflect.MessageDescriptor {
 	service, method, ok := strings.Cut(strings.TrimPrefix(url, "/"), "/")
 	if !ok {
 		return nil
 	}
-	for _, fd := range fds {
-		if sd := fd.FindService(service); sd != nil {
-			if md := sd.FindMethodByName(method); md != nil {
-				return md.GetInputType()
-			}
-		}
+	d, err := files.AsResolver().FindDescriptorByName(protoreflect.FullName(service))
+	if err != nil {
+		return nil
+	}
+	sd, ok := d.(protoreflect.ServiceDescriptor)
+	if !ok {
+		return nil
+	}
+	if md := sd.Methods().ByName(protoreflect.Name(method)); md != nil {
+		return md.Input()
 	}
 	return nil
+}
+
+// newMessage builds a dynamic message of type md from JSON (an empty body means an empty message).
+func newMessage(md protoreflect.MessageDescriptor, body json.RawMessage) (*dynamicpb.Message, error) {
+	msg := dynamicpb.NewMessage(md)
+	if len(body) == 0 {
+		return msg, nil
+	}
+	return msg, protojson.Unmarshal(body, msg)
 }
 
 func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 	var routes []models.Route
 
 	dir := filepath.Dir(protoPath)
-	parser := protoparse.Parser{ImportPaths: []string{dir}}
-	fds, err := parser.ParseFiles(filepath.Base(protoPath))
-	if err != nil || len(fds) == 0 {
+	fds, err := compileProto(protoPath)
+	if err != nil {
 		log.Printf("Failed to parse proto file %s: %v", protoPath, err)
 		return nil, err
 	}
@@ -88,9 +114,9 @@ func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 			continue
 		}
 
-		var msg *dynamic.Message
+		var msg *dynamicpb.Message
 		var rawJSONBody []byte
-		var msgDesc *desc.MessageDescriptor
+		var msgDesc protoreflect.MessageDescriptor
 
 		if s.Response.Proto {
 			msgDesc = findMessage(fds, s.Response.Message)
@@ -99,8 +125,8 @@ func parseProtoAndStubs(protoPath string) ([]models.Route, error) {
 				continue
 			}
 
-			msg = dynamic.NewMessage(msgDesc)
-			if err := msg.UnmarshalJSON(s.Response.Body); err != nil {
+			msg, err = newMessage(msgDesc, s.Response.Body)
+			if err != nil {
 				log.Printf("Failed to unmarshal response for %s: %v", stubPath, err)
 				continue
 			}

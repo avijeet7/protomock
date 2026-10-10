@@ -13,12 +13,12 @@ import (
 
 	"github.com/avijeet7/protomock/internal/grpcserver"
 	"github.com/avijeet7/protomock/internal/loader"
-	"github.com/jhump/protoreflect/desc/protoparse"
-	"github.com/jhump/protoreflect/dynamic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 const greeterProto = `syntax = "proto3";
@@ -99,24 +99,19 @@ func callHello(t *testing.T, conn *grpc.ClientConn, userID string) (string, erro
 func callGreeter(t *testing.T, conn *grpc.ClientConn, method, userID string) (string, error) {
 	t.Helper()
 
-	fds, err := (&protoparse.Parser{Accessor: protoparse.FileContentsFromMap(map[string]string{
-		"greeter.proto": greeterProto,
-	})}).ParseFiles("greeter.proto")
-	if err != nil {
-		t.Fatal(err)
-	}
-	reqDesc, replyDesc := fds[0].FindMessage("test.HelloRequest"), fds[0].FindMessage("test.HelloReply")
+	fd := compileProto(t, "greeter.proto", greeterProto)
+	reqDesc, replyDesc := fd.Messages().ByName("HelloRequest"), fd.Messages().ByName("HelloReply")
 
-	req := dynamic.NewMessage(reqDesc)
-	req.SetFieldByName("user_id", userID)
-	reply := dynamic.NewMessage(replyDesc)
+	req := dynamicpb.NewMessage(reqDesc)
+	req.Set(reqDesc.Fields().ByName("user_id"), protoreflect.ValueOfString(userID))
+	reply := dynamicpb.NewMessage(replyDesc)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := conn.Invoke(ctx, method, req, reply); err != nil {
 		return "", err
 	}
-	return reply.GetFieldByName("message").(string), nil
+	return reply.Get(replyDesc.Fields().ByName("message")).String(), nil
 }
 
 func TestGRPC_BodyMatchUsesRequestType(t *testing.T) {
@@ -189,5 +184,20 @@ func TestGRPC_UnmatchedCallsReturnStatusErrors(t *testing.T) {
 				t.Errorf("status code = %v, want %v (err: %v)", got, tt.wantCode, err)
 			}
 		})
+	}
+}
+
+func TestGRPC_BodyMatchOnZeroValueField(t *testing.T) {
+	// proto3 doesn't send zero values on the wire; stubs should still be able to match them.
+	conn := startGreeter(t, map[string]string{
+		"empty.json": greeterStub("", "hi nobody"),
+	})
+
+	got, err := callHello(t, conn, "")
+	if err != nil {
+		t.Fatalf("Hello(user_id=\"\") error: %v", err)
+	}
+	if got != "hi nobody" {
+		t.Errorf("reply = %q, want %q", got, "hi nobody")
 	}
 }

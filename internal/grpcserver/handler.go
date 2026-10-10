@@ -5,12 +5,12 @@ import (
 
 	"github.com/avijeet7/protomock/internal/match"
 	"github.com/avijeet7/protomock/internal/models"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/jhump/protoreflect/dynamic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 type mockService struct {
@@ -76,10 +76,10 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 // receiveRequest reads the single request message, decoded with the method's
 // input type. All candidates share a method, so any known RequestDesc works.
 // It returns a nil message if the input type is unknown.
-func receiveRequest(stream grpc.ServerStream, candidates []models.Route) (*dynamic.Message, error) {
+func receiveRequest(stream grpc.ServerStream, candidates []models.Route) (*dynamicpb.Message, error) {
 	for _, route := range candidates {
 		if route.RequestDesc != nil {
-			reqMsg := dynamic.NewMessage(route.RequestDesc)
+			reqMsg := dynamicpb.NewMessage(route.RequestDesc)
 			if err := stream.RecvMsg(reqMsg); err != nil {
 				return nil, err
 			}
@@ -103,11 +103,16 @@ func headersMatch(expected map[string]string, md metadata.MD) bool {
 
 // bodyMatches checks the stub's body against the request rendered as JSON.
 // Stubs may use either the .proto field names (user_id) or proto3 JSON
-// camelCase names (userId), so both renderings are tried.
-func bodyMatches(expected []byte, reqMsg *dynamic.Message) bool {
-	if protoNames, err := reqMsg.MarshalJSONPB(&jsonpb.Marshaler{OrigName: true}); err == nil && match.PartialJSON(expected, protoNames) {
-		return true
+// camelCase names (userId), so both renderings are tried. Unset fields are
+// rendered with their zero values so stubs can match on e.g. {"count": 0}.
+func bodyMatches(expected []byte, reqMsg *dynamicpb.Message) bool {
+	for _, opts := range []protojson.MarshalOptions{
+		{UseProtoNames: true, EmitUnpopulated: true},
+		{EmitUnpopulated: true},
+	} {
+		if actual, err := opts.Marshal(reqMsg); err == nil && match.PartialJSON(expected, actual) {
+			return true
+		}
 	}
-	camelNames, err := reqMsg.MarshalJSON()
-	return err == nil && match.PartialJSON(expected, camelNames)
+	return false
 }
