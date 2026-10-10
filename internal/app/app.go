@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log"
 	"net"
+	"net/http"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -30,7 +31,8 @@ type App struct {
 
 	mu          sync.Mutex // serializes reloads (and edits made through the UI)
 	set         atomic.Pointer[loader.Set]
-	fingerprint string // of the mocks folder at the last reload
+	fingerprint string       // of the mocks folder at the last reload
+	grpcAddr    atomic.Value // string: address the gRPC server is listening on
 }
 
 // New loads the mocks folder and prepares the servers (without starting them).
@@ -70,6 +72,7 @@ func (a *App) Run() error {
 func (a *App) Serve(httpLis, grpcLis net.Listener) error {
 	log.Printf("[HTTP] Server started on %s", httpLis.Addr())
 	log.Printf("🚀 gRPC server started on %s", grpcLis.Addr())
+	a.grpcAddr.Store(grpcLis.Addr().String())
 
 	errCh := make(chan error, 2)
 	go func() { errCh <- a.http.Serve(httpLis) }()
@@ -79,6 +82,25 @@ func (a *App) Serve(httpLis, grpcLis net.Listener) error {
 		go a.watch(a.cfg.ReloadInterval)
 	}
 	return <-errCh
+}
+
+// ServeMock serves a request with the HTTP mocks (used by the UI's "Try it").
+func (a *App) ServeMock(w http.ResponseWriter, r *http.Request) { a.http.ServeHTTP(w, r) }
+
+// GRPCTarget is the address to dial the running gRPC server (used by the UI's "Try it").
+func (a *App) GRPCTarget() string {
+	addr, _ := a.grpcAddr.Load().(string)
+	if addr == "" {
+		addr = a.cfg.GRPCAddr
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		host = "127.0.0.1" // listening on all interfaces: dial loopback
+	}
+	return net.JoinHostPort(host, port)
 }
 
 // MocksDir is the folder mocks are loaded from.

@@ -1,7 +1,11 @@
 package loader
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/bufbuild/protocompile"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -18,9 +22,24 @@ type Protos struct {
 // CompileProtos compiles the named .proto files in dir. Imports resolve relative to dir,
 // and well-known types (google/protobuf/*.proto) are built in.
 func CompileProtos(dir string, names []string) (*Protos, error) {
+	return CompileProtosWith(dir, names, nil)
+}
+
+// CompileProtosWith is CompileProtos with some files' content replaced by overlay
+// (slash-separated path relative to dir -> content). The editor uses it to check a
+// .proto edit before saving it.
+func CompileProtosWith(dir string, names []string, overlay map[string][]byte) (*Protos, error) {
 	compiler := protocompile.Compiler{
 		Resolver: protocompile.WithStandardImports(&protocompile.SourceResolver{
 			ImportPaths: []string{dir},
+			Accessor: func(path string) (io.ReadCloser, error) {
+				if rel, err := filepath.Rel(dir, path); err == nil {
+					if content, ok := overlay[filepath.ToSlash(rel)]; ok {
+						return io.NopCloser(bytes.NewReader(content)), nil
+					}
+				}
+				return os.Open(path)
+			},
 		}),
 	}
 	files, err := compiler.Compile(context.Background(), names...)
