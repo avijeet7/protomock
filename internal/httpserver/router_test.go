@@ -10,7 +10,7 @@ import (
 
 // fakeUI stands in for the real web UI so router tests don't depend on template files.
 var fakeUI = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("ui"))
+	_, _ = w.Write([]byte("ui"))
 })
 
 func TestNewRouter(t *testing.T) {

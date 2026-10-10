@@ -20,7 +20,7 @@ func occupyPort(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { lis.Close() })
+	t.Cleanup(func() { _ = lis.Close() })
 	return lis.Addr().String()
 }
 

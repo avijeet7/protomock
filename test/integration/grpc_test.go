@@ -13,7 +13,6 @@ import (
 
 	"github.com/avijeet7/protomock/internal/grpcserver"
 	"github.com/avijeet7/protomock/internal/loader"
-	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
 	"google.golang.org/grpc"
@@ -79,14 +78,14 @@ func startGreeter(t *testing.T, stubs map[string]string) *grpc.ClientConn {
 		t.Fatal(err)
 	}
 	server := grpcserver.NewGRPCServer(routes)
-	go server.Serve(lis)
+	go func() { _ = server.Serve(lis) }()
 	t.Cleanup(server.Stop)
 
 	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { conn.Close() })
+	t.Cleanup(func() { _ = conn.Close() })
 	return conn
 }
 
@@ -106,7 +105,7 @@ func callGreeter(t *testing.T, conn *grpc.ClientConn, method, userID string) (st
 	if err != nil {
 		t.Fatal(err)
 	}
-	var reqDesc, replyDesc *desc.MessageDescriptor = fds[0].FindMessage("test.HelloRequest"), fds[0].FindMessage("test.HelloReply")
+	reqDesc, replyDesc := fds[0].FindMessage("test.HelloRequest"), fds[0].FindMessage("test.HelloReply")
 
 	req := dynamic.NewMessage(reqDesc)
 	req.SetFieldByName("user_id", userID)

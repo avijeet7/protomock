@@ -69,5 +69,5 @@ func writeResponse(w http.ResponseWriter, route models.Route) {
 
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(route.Status)
-	w.Write(body)
+	_, _ = w.Write(body) // a write error means the client went away; nothing to do
 }

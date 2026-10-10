@@ -39,7 +39,7 @@ func readBody(r *http.Request) []byte {
 	if r.Body == nil {
 		return nil
 	}
-	defer r.Body.Close()
+	// No Close needed: the HTTP server closes request bodies itself.
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil
