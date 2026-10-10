@@ -470,17 +470,26 @@ function renderStubEditor() {
 }
 
 function jsonEditor(ed) {
+  const tree = ed.jsonTree && !ed.parseError;
   return h('div', {class: 'card'},
     h('div', {class: 'card-head'}, 'Stub JSON', h('span', {class: 'spacer'}),
-      h('button', {class: 'btn btn-small', onclick: () => {
+      !tree && h('button', {class: 'btn btn-small', onclick: () => {
         const p = parseJSON(ed.text);
         if (p.error) return toast('Invalid JSON: ' + p.error, true);
         ed.text = pretty(p.value); renderStubEditor();
-      }}, 'Format')),
+      }}, 'Format'),
+      h('div', {class: 'tabs tabs-small'},
+        h('button', {class: tree ? '' : 'active', onclick: () => { ed.jsonTree = false; renderStubEditor(); }}, 'Text'),
+        h('button', {class: tree ? 'active' : '', onclick: () => {
+          if (ed.parseError) return toast('Fix the JSON before switching to Tree', true);
+          ed.jsonTree = true; renderStubEditor();
+        }}, 'Tree'))),
     h('div', {class: 'card-body'},
-      h('textarea', {class: 'code', rows: 28, spellcheck: 'false', value: ed.text,
-        oninput: (e) => { ed.text = e.target.value; editorChanged({fromText: true}); },
-        onkeydown: tabIndent}),
+      tree
+        ? jsonViewer(ed.obj, {openDepth: 3, extra: h('span', {class: 'hint'}, 'Read-only — switch to Text to edit')})
+        : h('textarea', {class: 'code', rows: textareaRows(ed.text, 20, 40), spellcheck: 'false', value: ed.text,
+            oninput: (e) => { ed.text = e.target.value; editorChanged({fromText: true}); },
+            onkeydown: tabIndent}),
     ),
   );
 }
@@ -493,10 +502,52 @@ function tabIndent(e) {
   t.dispatchEvent(new Event('input'));
 }
 
+// ---------- collapsible JSON tree (read-only) ----------
+
+// jsonTree renders value as nested, foldable <details>. Levels below openDepth start collapsed.
+function jsonTree(value, openDepth = 2) {
+  const node = (key, v, depth) => {
+    const label = key === null ? null
+      : h('span', {class: typeof key === 'number' ? 'jt-index' : 'jt-key'}, typeof key === 'number' ? `${key}: ` : `${JSON.stringify(key)}: `);
+    if (v === null || typeof v !== 'object') {
+      return h('div', {class: 'jt-leaf'}, label, h('span', {class: 'jt-' + (v === null ? 'null' : typeof v)}, JSON.stringify(v)));
+    }
+    const isArray = Array.isArray(v);
+    const entries = isArray ? v.map((x, i) => [i, x]) : Object.entries(v);
+    const [open, close] = isArray ? ['[', ']'] : ['{', '}'];
+    if (entries.length === 0) return h('div', {class: 'jt-leaf'}, label, h('span', {class: 'jt-brace'}, open + close));
+    const count = `${entries.length} ${isArray ? (entries.length === 1 ? 'item' : 'items') : (entries.length === 1 ? 'key' : 'keys')}`;
+    return h('details', {class: 'jt-node', open: depth < openDepth},
+      h('summary', {}, label, h('span', {class: 'jt-brace'}, open),
+        h('span', {class: 'jt-collapsed'}, ` ${count} ${close}`)),
+      h('div', {class: 'jt-children'}, entries.map(([k, x]) => node(k, x, depth + 1))),
+      h('div', {class: 'jt-brace jt-close'}, close));
+  };
+  return node(null, value, 0);
+}
+
+// jsonViewer is a jsonTree with Expand all / Collapse all controls, in a scrollable box.
+function jsonViewer(value, {openDepth = 2, extra} = {}) {
+  const box = h('div', {class: 'jt'}, jsonTree(value, openDepth));
+  const setAll = (open) => box.querySelectorAll('details').forEach(d => { d.open = open; });
+  return h('div', {class: 'jt-wrap'},
+    h('div', {class: 'jt-toolbar'},
+      h('button', {class: 'btn btn-small', onclick: () => setAll(true)}, 'Expand all'),
+      h('button', {class: 'btn btn-small', onclick: () => setAll(false)}, 'Collapse all'),
+      extra),
+    box);
+}
+
+// textareaRows sizes a textarea to its content, within [min, max] lines (it scrolls beyond max).
+const textareaRows = (text, min, max) => Math.max(min, Math.min(max, (text || '').split('\n').length + 1));
+
 // A JSON body field bound to obj[path]; empty text removes the key.
-function jsonField(ed, path, {label, hint, template}) {
+// Text view edits; Tree view is a collapsible, read-only view of the same JSON.
+function jsonField(ed, path, {label, hint, template, minRows = 6, maxRows = 16}) {
+  ed.fieldViews = ed.fieldViews || {};
   const current = getPath(ed.obj, path);
-  const area = h('textarea', {class: 'code', rows: 8, spellcheck: 'false', value: current === undefined ? '' : pretty(current), onkeydown: tabIndent});
+  const initial = current === undefined ? '' : pretty(current);
+  const area = h('textarea', {class: 'code', rows: textareaRows(initial, minRows, maxRows), spellcheck: 'false', value: initial, onkeydown: tabIndent});
   const err = h('div', {class: 'error-text'});
   area.addEventListener('input', () => {
     const text = area.value.trim();
@@ -506,19 +557,47 @@ function jsonField(ed, path, {label, hint, template}) {
     err.textContent = p.error ? 'Invalid JSON: ' + p.error : '';
     if (!p.error) { setPath(ed.obj, path, p.value); editorChanged(); }
   });
+
+  const body = h('div');
+  const viewTabs = h('div', {class: 'tabs tabs-small'});
+  const draw = () => {
+    const view = ed.fieldViews[path] || 'text';
+    mount(viewTabs,
+      h('button', {class: view === 'text' ? 'active' : '', onclick: () => { ed.fieldViews[path] = 'text'; draw(); }}, 'Text'),
+      h('button', {class: view === 'tree' ? 'active' : '', onclick: () => {
+        const p = parseJSON(area.value.trim() || 'null');
+        if (p.error) return toast('Fix the JSON before switching to Tree', true);
+        ed.fieldViews[path] = 'tree'; draw();
+      }}, 'Tree'));
+    if (view === 'tree') {
+      const value = getPath(ed.obj, path);
+      mount(body, value === undefined ? h('div', {class: 'muted small'}, '(empty)') : jsonViewer(value, {
+        extra: h('span', {class: 'hint'}, 'Read-only — switch to Text to edit'),
+      }));
+    } else {
+      mount(body, area, err);
+    }
+  };
+  draw();
+
   const insertTemplate = template && h('button', {class: 'btn btn-small', onclick: async () => {
     const msg = template();
     if (!msg) return toast('Pick a message type first', true);
     try {
       const tmpl = await api('GET', '/template', {query: {kind: ed.kind, mock: ed.mock, message: msg}});
       if (area.value.trim() && !confirm('Replace the current body with a template?')) return;
-      area.value = pretty(tmpl); area.dispatchEvent(new Event('input'));
+      area.value = pretty(tmpl);
+      area.rows = textareaRows(area.value, minRows, maxRows);
+      area.dispatchEvent(new Event('input'));
+      if (ed.fieldViews[path] === 'tree') draw();
     } catch (e) { toast(e.message, true); }
   }}, 'Insert template');
-  return h('label', {class: 'field'},
-    h('span', {}, label),
-    h('div', {class: 'row', style: 'align-items:center'}, h('div', {class: 'hint'}, hint || ''), h('div', {class: 'shrink'}, insertTemplate)),
-    area, err);
+
+  return h('div', {class: 'field'},
+    h('div', {class: 'field-label'}, label),
+    h('div', {class: 'row', style: 'align-items:center'}, h('div', {class: 'hint'}, hint || ''),
+      h('div', {class: 'shrink field-actions'}, insertTemplate, viewTabs)),
+    body);
 }
 
 function kvEditor(ed, path, {label, hint, keyPlaceholder}) {
@@ -616,6 +695,7 @@ function formEditor(ed, mock) {
       ),
       kvEditor(ed, 'response.headers', {label: isGRPC ? 'Response metadata' : 'Response headers', keyPlaceholder: isGRPC ? 'x-trace-id' : 'Content-Type'}),
       jsonField(ed, 'response.body', {
+        minRows: 12, maxRows: 32,
         label: 'Body',
         hint: isGRPC || o.response.proto ? 'JSON form of the protobuf message (.proto field names).' : 'Any JSON value.',
         template: isGRPC || o.response.proto ? msgOf : null,
@@ -723,11 +803,18 @@ function renderTry(mock) {
     const r = t.result;
     if (!r) return mount(result);
     const ok = isGRPC ? r.code === 'OK' : r.status < 400;
-    let body;
-    if (isGRPC) body = r.body !== undefined ? pretty(r.body) : r.message;
-    else if (r.body_json !== undefined) body = pretty(r.body_json);
-    else if (r.body !== undefined) { const p = parseJSON(r.body); body = p.error ? r.body : pretty(p.value); }
-    else body = `(${r.body_size} bytes of binary data${r.decode_error ? ': ' + r.decode_error : ''})`;
+    // json: the body as a JSON value when it is one (shown as a tree); text: the raw fallback.
+    let json, text;
+    if (isGRPC) { if (r.body !== undefined) json = r.body; else text = r.message; }
+    else if (r.body_json !== undefined) json = r.body_json;
+    else if (r.body !== undefined) { const p = parseJSON(r.body); if (p.error || r.body === '') text = r.body; else json = p.value; }
+    else text = `(${r.body_size} bytes of binary data${r.decode_error ? ': ' + r.decode_error : ''})`;
+    const raw = t.rawView || json === undefined;
+    const bodyView = raw
+      ? h('div', {}, json !== undefined && h('div', {class: 'jt-toolbar'},
+          h('button', {class: 'btn btn-small', onclick: () => { t.rawView = false; drawResult(); }}, 'Tree view')),
+          h('pre', {class: 'output'}, (json !== undefined ? pretty(json) : text) || '(empty)'))
+      : jsonViewer(json, {extra: h('button', {class: 'btn btn-small', onclick: () => { t.rawView = true; drawResult(); }}, 'Raw')});
     const hdrs = Object.entries(r.headers || {});
     mount(result,
       h('div', {class: 'row', style: 'align-items:center; margin-bottom: 8px'},
@@ -737,7 +824,7 @@ function renderTry(mock) {
           r.body_json !== undefined ? h('span', {class: 'muted small'}, '  · protobuf, decoded to JSON') : null)),
       hdrs.length > 0 && h('table', {class: 'list small', style: 'margin-bottom: 8px'},
         hdrs.map(([k, v]) => h('tr', {}, h('td', {class: 'mono'}, k), h('td', {class: 'mono'}, v)))),
-      h('pre', {class: 'output'}, body || '(empty)'));
+      bodyView);
   };
 
   mount(panel, h('div', {class: 'card'},

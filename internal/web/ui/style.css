@@ -160,3 +160,34 @@ pre.output { background: var(--code-bg); border: 1px solid var(--border); border
 .empty-state .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
 .empty-state .step { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
 .empty-state .step b { display: block; margin-bottom: 4px; }
+
+/* collapsible JSON tree */
+.field-label { font-weight: 600; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.tabs-small button { padding: 2px 10px; font-size: 12px; }
+.field-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.jt-wrap { display: flex; flex-direction: column; gap: 6px; }
+.jt-toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.jt {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px; max-height: 560px; overflow: auto;
+}
+.jt details > summary { cursor: pointer; list-style: none; border-radius: 3px; }
+.jt details > summary::-webkit-details-marker { display: none; }
+.jt details > summary::before { content: '▸'; display: inline-block; width: 14px; color: var(--muted); }
+.jt details[open] > summary::before { content: '▾'; }
+.jt details > summary:hover { background: var(--panel-2); }
+.jt details[open] > summary .jt-collapsed { display: none; }
+.jt-children { padding-left: 18px; border-left: 1px dashed var(--border); margin-left: 5px; }
+.jt-close { padding-left: 14px; }
+.jt-leaf { padding-left: 14px; white-space: pre-wrap; word-break: break-word; }
+.jt-key { color: #c2255c; }
+.jt-index { color: var(--muted); }
+.jt-string { color: #2b8a3e; }
+.jt-number { color: #1971c2; }
+.jt-boolean { color: #e8590c; }
+.jt-null { color: var(--muted); font-style: italic; }
+.jt-brace, .jt-collapsed { color: var(--muted); }
+@media (prefers-color-scheme: dark) {
+  .jt-key { color: #faa2c1; } .jt-string { color: #8ce99a; } .jt-number { color: #74c0fc; } .jt-boolean { color: #ffc078; }
+}
