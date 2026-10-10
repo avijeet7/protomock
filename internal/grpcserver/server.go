@@ -7,7 +7,6 @@ import (
 
 	"github.com/avijeet7/protomock/internal/models"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 // StartGRPCServer serves gRPC mocks on addr (e.g. ":8086").
@@ -31,7 +30,7 @@ func NewGRPCServer(routes []models.Route) *grpc.Server {
 		grpc.UnknownServiceHandler((&mockService{routes: routeMap}).ServeGRPC),
 	)
 
-	reflection.Register(server)
+	registerReflection(server, routes)
 
 	for fullMethod := range routeMap {
 		log.Printf("[gRPC] Registered route: %s", fullMethod)
