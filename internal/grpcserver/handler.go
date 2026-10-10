@@ -3,7 +3,9 @@ package grpcserver
 import (
 	"log"
 
+	"github.com/avijeet7/protomock/internal/match"
 	"github.com/avijeet7/protomock/internal/models"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/jhump/protoreflect/dynamic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -49,13 +51,16 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 
 		// ✅ Body matching (only if specified)
 		if len(route.BodyMatch) > 0 {
-			reqMsg := dynamic.NewMessage(route.MessageDesc)
+			if route.RequestDesc == nil {
+				log.Printf("❌ Cannot match body for %s: method not found in the stub's proto service definitions", fullMethod)
+				continue
+			}
+			reqMsg := dynamic.NewMessage(route.RequestDesc)
 			if err := serverStream.RecvMsg(reqMsg); err != nil {
 				log.Printf("❌ Failed to receive gRPC request body for %s: %v", fullMethod, err)
 				continue
 			}
-			actualBody, _ := reqMsg.MarshalJSON()
-			if !partialJSONMatch(route.BodyMatch, actualBody) {
+			if !bodyMatches(route.BodyMatch, reqMsg) {
 				log.Printf("❌ Body mismatch for %s", fullMethod)
 				continue
 			}
@@ -77,4 +82,15 @@ func (m *mockService) ServeGRPC(_ interface{}, serverStream grpc.ServerStream) e
 
 	log.Printf("❌ No gRPC stub matched for %s", fullMethod)
 	return nil
+}
+
+// bodyMatches checks the stub's body against the request rendered as JSON.
+// Stubs may use either the .proto field names (user_id) or proto3 JSON
+// camelCase names (userId), so both renderings are tried.
+func bodyMatches(expected []byte, reqMsg *dynamic.Message) bool {
+	if protoNames, err := reqMsg.MarshalJSONPB(&jsonpb.Marshaler{OrigName: true}); err == nil && match.PartialJSON(expected, protoNames) {
+		return true
+	}
+	camelNames, err := reqMsg.MarshalJSON()
+	return err == nil && match.PartialJSON(expected, camelNames)
 }

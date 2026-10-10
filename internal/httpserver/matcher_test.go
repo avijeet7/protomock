@@ -40,16 +40,6 @@ func TestMatchBody(t *testing.T) {
 	}
 }
 
-func BenchmarkMatchPathRegex(b *testing.B) {
-	_, regexRoutes := partitionRoutes([]models.Route{{URL: "/hello/[0-9]+/world", Method: "GET"}})
-	route := regexRoutes[0]
-	req := httptest.NewRequest(http.MethodGet, "/hello/123/world", nil)
-
-	for b.Loop() {
-		matchPath(req, route)
-	}
-}
-
 func TestPartitionRoutes(t *testing.T) {
 	exact, regexRoutes := partitionRoutes([]models.Route{
 		{URL: "/users", Method: "GET"},

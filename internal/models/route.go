@@ -15,8 +15,9 @@ type Route struct {
 	HeaderMatch  map[string]string
 	BodyMatch    json.RawMessage
 	Status       int
-	MessageDesc  *desc.MessageDescriptor
-	Message      *dynamic.Message // response message
+	MessageDesc  *desc.MessageDescriptor // response message type
+	RequestDesc  *desc.MessageDescriptor // gRPC request message type, from the service definition (nil for HTTP)
+	Message      *dynamic.Message        // response message
 	ProtoEncoded bool
 	RawJSONBody  []byte
 	FilePath     string         // Path to the stub file
