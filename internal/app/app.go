@@ -5,6 +5,7 @@ package app
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -42,6 +43,9 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.Strict && len(set.Problems) > 0 {
+		return nil, strictError(set.Problems)
+	}
 	a.set.Store(set)
 	a.fingerprint = fingerprint
 
@@ -62,7 +66,6 @@ func (a *App) Run() error {
 		_ = httpLis.Close()
 		return fmt.Errorf("gRPC server: %w", err)
 	}
-	log.Printf("🌐 ProtoMock UI available at %s/protomock-ui", baseURL(a.cfg.HTTPAddr))
 	return a.Serve(httpLis, grpcLis)
 }
 
@@ -70,9 +73,10 @@ func (a *App) Run() error {
 // Both servers always run: the HTTP server also serves the UI, and gRPC mocks
 // can be added later through the UI or on disk.
 func (a *App) Serve(httpLis, grpcLis net.Listener) error {
-	log.Printf("[HTTP] Server started on %s", httpLis.Addr())
-	log.Printf("🚀 gRPC server started on %s", grpcLis.Addr())
 	a.grpcAddr.Store(grpcLis.Addr().String())
+	for _, line := range startupBanner(httpLis.Addr(), grpcLis.Addr(), a.cfg.PublicURL, inContainer()) {
+		log.Print(line)
+	}
 
 	errCh := make(chan error, 2)
 	go func() { errCh <- a.http.Serve(httpLis) }()
@@ -93,15 +97,11 @@ func (a *App) GRPCTarget() string {
 	if addr == "" {
 		addr = a.cfg.GRPCAddr
 	}
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return addr
-	}
-	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
-		host = "127.0.0.1" // listening on all interfaces: dial loopback
-	}
-	return net.JoinHostPort(host, port)
+	return dialAddr(addr)
 }
+
+// Strict reports whether strict mode is on (the health check then fails while mocks have problems).
+func (a *App) Strict() bool { return a.cfg.Strict }
 
 // MocksDir is the folder mocks are loaded from.
 func (a *App) MocksDir() string { return a.cfg.MocksDir }
@@ -136,6 +136,9 @@ func (a *App) reloadLocked() (*loader.Set, error) {
 	a.grpc.Update(set.GRPC)
 	a.set.Store(set)
 	a.fingerprint = fingerprint
+	if a.cfg.Strict && len(set.Problems) > 0 {
+		log.Printf("❌ Strict mode: %d mock file(s) failed to load; the health check reports unhealthy until they're fixed", len(set.Problems))
+	}
 	return set, nil
 }
 
@@ -186,10 +189,12 @@ func fingerprintDir(dir string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// baseURL turns a listen address like ":8085" into a browsable base URL.
-func baseURL(addr string) string {
-	if strings.HasPrefix(addr, ":") {
-		addr = "localhost" + addr
+// strictError lists every file that failed to load.
+func strictError(problems []loader.Problem) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "strict mode: %d mock file(s) failed to load:", len(problems))
+	for _, p := range problems {
+		fmt.Fprintf(&b, "\n  - %s: %s", p.Path, p.Error)
 	}
-	return "http://" + addr
+	return errors.New(b.String())
 }

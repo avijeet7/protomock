@@ -19,6 +19,7 @@ type Backend interface {
 	Reload() (*loader.Set, error)                // re-read the mocks folder
 	ServeMock(w http.ResponseWriter, r *http.Request)
 	GRPCTarget() string // address to dial the gRPC mock server
+	Strict() bool       // strict mode: unhealthy while any mock file fails to load
 }
 
 // assets are the UI files compiled into the binary.

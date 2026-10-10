@@ -23,6 +23,11 @@ func TestLoad(t *testing.T) {
 			want: Config{HTTPAddr: ":9085", GRPCAddr: ":8086", MocksDir: "/data/mocks", ReloadInterval: 2 * time.Second},
 		},
 		{
+			name: "strict and public URL from environment",
+			env:  map[string]string{"PROTOMOCK_STRICT": "true", "PROTOMOCK_PUBLIC_URL": "http://localhost:8888/"},
+			want: Config{HTTPAddr: ":8085", GRPCAddr: ":8086", MocksDir: "mocks", ReloadInterval: 2 * time.Second, Strict: true, PublicURL: "http://localhost:8888"},
+		},
+		{
 			name: "flags override environment",
 			args: []string{"-http-addr", ":7085", "-grpc-addr=:7086", "-web-dir", "/srv/web", "-reload-interval", "0"},
 			env:  map[string]string{"PROTOMOCK_HTTP_ADDR": ":9085"},
@@ -41,6 +46,14 @@ func TestLoad(t *testing.T) {
 				t.Errorf("Load() = %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLoad_InvalidEnv(t *testing.T) {
+	for _, env := range []map[string]string{{"PROTOMOCK_STRICT": "maybe"}, {"PROTOMOCK_RELOAD_INTERVAL": "soon"}} {
+		if _, err := Load(nil, func(k string) string { return env[k] }, io.Discard); err == nil {
+			t.Errorf("Load with %v returned nil error", env)
+		}
 	}
 }
 

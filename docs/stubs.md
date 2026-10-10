@@ -107,13 +107,35 @@ A request is answered by the **first** stub that matches **all** of its rules:
 - Stubs with the same priority are tried in mock-name order, then file-name order.
 - HTTP stubs with an **exact URL** are always tried before **regex** stubs.
 
-**When nothing matches:**
+**When nothing matches**, ProtoMock explains why. The same explanation goes to the server log:
 
 | | Response |
 |---|---|
-| HTTP | `404 Not Found` |
-| gRPC, stubs exist for the method | `NotFound`: *"none of the N stubs … matched"* |
-| gRPC, no stubs for the method | `Unimplemented` |
+| HTTP | `404` with a JSON body: the closest stubs for the URL and the rules each one failed, or stubs with similar URLs if none has this URL. The response also carries `X-Protomock-No-Match: true`. |
+| gRPC, stubs exist for the method | `NotFound`: *"no stub matched /shop.Shop/GetItem (2 stubs). Closest shop/stubs/item_42.json: body.id: expected "42", got "7""* |
+| gRPC, no stubs for the method | `Unimplemented`, listing the methods that are mocked, so a typo stands out |
+
+An example HTTP `404` body:
+
+```text
+{
+  "error": "protomock: no stub matched POST /login",
+  "request": { "method": "POST", "path": "/login" },
+  "closest": [
+    {
+      "stub": "auth/stubs/admin.json",
+      "method": "POST",
+      "url": "/login",
+      "reasons": [
+        "header X-Tenant: missing (expected \"acme\")",
+        "body.user: expected \"admin\", got \"bob\""
+      ]
+    }
+  ]
+}
+```
+
+Closest stubs are ranked with the request's method first, then by the fewest failed rules.
 
 ---
 

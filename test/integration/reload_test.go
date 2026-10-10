@@ -19,7 +19,14 @@ import (
 // startApp runs the whole app (loader, HTTP + gRPC servers, watcher) on random local ports.
 func startApp(t *testing.T, mocksDir string, reloadInterval time.Duration) (a *app.App, httpURL string, grpcConn *grpc.ClientConn) {
 	t.Helper()
-	a, err := app.New(config.Config{MocksDir: mocksDir, ReloadInterval: reloadInterval})
+	a, httpURL, grpcConn, _ = startAppWith(t, config.Config{MocksDir: mocksDir, ReloadInterval: reloadInterval})
+	return a, httpURL, grpcConn
+}
+
+// startAppWith runs the app with cfg on random ports; cfg's addresses are set to the real ones.
+func startAppWith(t *testing.T, cfg config.Config) (a *app.App, httpURL string, grpcConn *grpc.ClientConn, actual config.Config) {
+	t.Helper()
+	a, err := app.New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,13 +40,14 @@ func startApp(t *testing.T, mocksDir string, reloadInterval time.Duration) (a *a
 	}
 	go func() { _ = a.Serve(httpLis, grpcLis) }()
 	t.Cleanup(func() { _ = httpLis.Close(); _ = grpcLis.Close() })
+	cfg.HTTPAddr, cfg.GRPCAddr = httpLis.Addr().String(), grpcLis.Addr().String()
 
 	conn, err := grpc.NewClient(grpcLis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
-	return a, "http://" + httpLis.Addr().String(), conn
+	return a, "http://" + httpLis.Addr().String(), conn, cfg
 }
 
 func get(t *testing.T, url string) (int, string) {

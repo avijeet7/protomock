@@ -28,6 +28,7 @@ type api struct {
 // Mock and file names are passed as query parameters (?kind=&mock=&file=)
 // because mock names may contain slashes ("team/users").
 func (a *api) register(mux *http.ServeMux, prefix string) {
+	mux.HandleFunc("GET "+prefix+"/health", a.health)
 	mux.HandleFunc("GET "+prefix+"/mocks", a.listMocks)
 	mux.HandleFunc("POST "+prefix+"/mocks", a.createMock)
 	mux.HandleFunc("GET "+prefix+"/template", a.template)
@@ -39,6 +40,25 @@ func (a *api) register(mux *http.ServeMux, prefix string) {
 	mux.HandleFunc("POST "+prefix+"/reload", a.reload)
 	mux.HandleFunc("POST "+prefix+"/try/http", a.tryHTTP)
 	mux.HandleFunc("POST "+prefix+"/try/grpc", a.tryGRPC)
+}
+
+// GET /health — 200 while ProtoMock is serving; 503 in strict mode while any mock file
+// fails to load. Used by `protomock healthcheck`, Docker HEALTHCHECK and compose healthchecks.
+func (a *api) health(w http.ResponseWriter, r *http.Request) {
+	set := a.backend.Set()
+	healthy := !a.backend.Strict() || len(set.Problems) == 0
+	status, code := "ok", http.StatusOK
+	if !healthy {
+		status, code = "unhealthy", http.StatusServiceUnavailable
+	}
+	writeJSON(w, code, map[string]any{
+		"status":     status,
+		"strict":     a.backend.Strict(),
+		"mocks":      len(set.Mocks),
+		"http_stubs": len(set.HTTP),
+		"grpc_stubs": len(set.GRPC),
+		"problems":   len(set.Problems),
+	})
 }
 
 // GET /mocks — every mock folder with its protos, methods, stubs and problems.

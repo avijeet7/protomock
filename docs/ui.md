@@ -119,6 +119,7 @@ Mocks are identified by query parameters, `?kind=http|grpc&mock=<name>&file=<fil
 
 | Method | Path | Body | Description |
 |---|---|---|---|
+| `GET` | `/health` | | `200 {"status":"ok",…}`, or `503` in strict mode while any mock file fails to load |
 | `GET` | `/mocks` | | Every mock with its protos, messages, gRPC methods, stubs (raw content and error) and problems, plus `writable` |
 | `POST` | `/mocks` | `{"kind","name","proto_file"?,"proto"?}` | Create a mock folder, optionally with a `.proto` |
 | `PUT` | `/stubs?kind&mock&file` | stub JSON | Validate and save a stub |
