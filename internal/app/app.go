@@ -34,11 +34,14 @@ type App struct {
 	set         atomic.Pointer[loader.Set]
 	fingerprint string       // of the mocks folder at the last reload
 	grpcAddr    atomic.Value // string: address the gRPC server is listening on
+
+	stop     chan struct{} // closed when Serve returns, to stop the watcher
+	stopOnce sync.Once
 }
 
 // New loads the mocks folder and prepares the servers (without starting them).
 func New(cfg config.Config) (*App, error) {
-	a := &App{cfg: cfg}
+	a := &App{cfg: cfg, stop: make(chan struct{})}
 	set, fingerprint, err := a.load()
 	if err != nil {
 		return nil, err
@@ -77,6 +80,8 @@ func (a *App) Serve(httpLis, grpcLis net.Listener) error {
 	for _, line := range startupBanner(httpLis.Addr(), grpcLis.Addr(), a.cfg.PublicURL, inContainer()) {
 		log.Print(line)
 	}
+
+	defer a.stopWatching()
 
 	errCh := make(chan error, 2)
 	go func() { errCh <- a.http.Serve(httpLis) }()
@@ -157,8 +162,16 @@ func (a *App) load() (*loader.Set, string, error) {
 
 // watch reloads whenever files in the mocks folder change (checked every interval).
 // Polling a small folder is cheap and needs no OS-specific file watching.
+// It stops when Serve returns (see stopWatching).
 func (a *App) watch(interval time.Duration) {
-	for range time.Tick(interval) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-a.stop:
+			return
+		case <-ticker.C:
+		}
 		current := fingerprintDir(a.cfg.MocksDir)
 		a.mu.Lock()
 		changed := current != a.fingerprint
@@ -170,6 +183,11 @@ func (a *App) watch(interval time.Duration) {
 			}
 		}
 	}
+}
+
+// stopWatching stops the watch goroutine; safe to call more than once.
+func (a *App) stopWatching() {
+	a.stopOnce.Do(func() { close(a.stop) })
 }
 
 // fingerprintDir summarizes every file's path, size and modification time under dir.
