@@ -3,7 +3,6 @@ package httpserver
 import (
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/avijeet7/protomock/internal/match"
 	"github.com/avijeet7/protomock/internal/models"
@@ -11,10 +10,6 @@ import (
 
 func matchMethod(r *http.Request, route models.Route) bool {
 	return r.Method == route.Method
-}
-
-func isRegexURL(url string) bool {
-	return strings.ContainsAny(url, "*+?()[]{}")
 }
 
 func matchPath(r *http.Request, route models.Route) bool {

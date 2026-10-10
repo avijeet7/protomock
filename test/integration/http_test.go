@@ -12,7 +12,6 @@ import (
 
 	"github.com/avijeet7/protomock/internal/httpserver"
 	"github.com/avijeet7/protomock/internal/loader"
-	"github.com/avijeet7/protomock/internal/models"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
@@ -30,21 +29,18 @@ message HelloResponse {
 // startHTTPMocks writes an HTTP mock folder (proto + stubs) and serves it with the real loader and router.
 func startHTTPMocks(t *testing.T, files map[string]string) *httptest.Server {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), "http")
-	writeFiles(t, root, files)
+	root := filepath.Join(t.TempDir(), "mocks")
+	writeFiles(t, filepath.Join(root, "http"), files)
 
-	var routes []models.Route
-	protoRoutes, err := loader.LoadProtoMocks(root)
+	set, err := loader.LoadAll(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	jsonRoutes, err := loader.LoadJSONMocks(root)
-	if err != nil {
-		t.Fatal(err)
+	if len(set.Problems) > 0 {
+		t.Fatalf("unexpected load problems: %v", set.Problems)
 	}
-	routes = append(append(routes, protoRoutes...), jsonRoutes...)
 
-	srv := httptest.NewServer(httpserver.NewRouter(routes, http.NotFoundHandler()))
+	srv := httptest.NewServer(httpserver.NewRouter(set.HTTP, http.NotFoundHandler()))
 	t.Cleanup(srv.Close)
 	return srv
 }

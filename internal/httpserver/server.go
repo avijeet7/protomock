@@ -5,9 +5,9 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"regexp"
 	"strings"
 
+	"github.com/avijeet7/protomock/internal/match"
 	"github.com/avijeet7/protomock/internal/models"
 )
 
@@ -66,17 +66,19 @@ func partitionRoutes(routes []models.Route) (map[string][]models.Route, []models
 	var regexRoutes []models.Route
 
 	for _, route := range routes {
-		if !isRegexURL(route.URL) {
+		if route.PathRegex == nil && !match.IsRegexURL(route.URL) {
 			urlToRoutes[route.URL] = append(urlToRoutes[route.URL], route)
 			continue
 		}
 
-		re, err := regexp.Compile("^" + route.URL + "$")
-		if err != nil {
-			log.Printf("[HTTP] ❌ Invalid URL regex %q in %s: %v (stub skipped)", route.URL, route.FilePath, err)
-			continue
+		if route.PathRegex == nil {
+			re, err := match.CompileURL(route.URL)
+			if err != nil {
+				log.Printf("[HTTP] ❌ Invalid URL regex %q in %s: %v (stub skipped)", route.URL, route.FilePath, err)
+				continue
+			}
+			route.PathRegex = re
 		}
-		route.PathRegex = re
 		regexRoutes = append(regexRoutes, route)
 	}
 	return urlToRoutes, regexRoutes

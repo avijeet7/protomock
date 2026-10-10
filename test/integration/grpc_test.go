@@ -6,8 +6,6 @@ package integration
 import (
 	"context"
 	"net"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -55,23 +53,18 @@ func greeterStubWithField(field, userID, reply string) string {
 func startGreeter(t *testing.T, stubs map[string]string) *grpc.ClientConn {
 	t.Helper()
 
-	dir := filepath.Join(t.TempDir(), "greeter")
-	if err := os.MkdirAll(filepath.Join(dir, "stubs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "greeter.proto"), []byte(greeterProto), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	root := t.TempDir()
+	files := map[string]string{"grpc/greeter/greeter.proto": greeterProto}
 	for name, content := range stubs {
-		if err := os.WriteFile(filepath.Join(dir, "stubs", name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		files["grpc/greeter/stubs/"+name] = content
 	}
+	writeFiles(t, root, files)
 
-	routes, err := loader.LoadProtoMocks(filepath.Dir(dir))
-	if err != nil || len(routes) != len(stubs) {
-		t.Fatalf("loaded %d routes (err=%v), want %d", len(routes), err, len(stubs))
+	set, err := loader.LoadAll(root)
+	if err != nil || len(set.GRPC) != len(stubs) {
+		t.Fatalf("loaded %d routes (err=%v, problems=%v), want %d", len(set.GRPC), err, set.Problems, len(stubs))
 	}
+	routes := set.GRPC
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0") // port 0 = any free port
 	if err != nil {

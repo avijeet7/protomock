@@ -20,6 +20,7 @@ type Route struct {
 	Message      *dynamicpb.Message             // response message
 	ProtoEncoded bool
 	RawJSONBody  []byte
+	Mock         string         // Mock folder name (relative to <mocks>/<kind>)
 	FilePath     string         // Path to the stub file
 	PathRegex    *regexp.Regexp // Compiled URL pattern for regex routes (nil for exact routes)
 }
